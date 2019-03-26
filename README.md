@@ -1,5 +1,5 @@
-
-Add to your `~/.vpvrc`:
+1. clone this repository to `~/.vpv`
+2. add to your `~/.vpvrc`:
 
 ```lua
 local path = os.getenv('HOME') .. '/.vpv'
