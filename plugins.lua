@@ -5,13 +5,27 @@ package.path = package.path ..  ";" .. path .. "/?/init.lua;" .. path .. "/?.lua
 
 local plugins = {}
 plugins.manager = {}
+
 plugins.manager.hooks_window_tick = {}
-plugins.manager.hooks_tick = {}
 plugins.manager.add_hook_window_tick = function(fn)
     table.insert(plugins.manager.hooks_window_tick, fn)
 end
+
+plugins.manager.hooks_tick = {}
 plugins.manager.add_hook_tick = function(fn)
     table.insert(plugins.manager.hooks_tick, fn)
+end
+
+plugins.manager.on_tick = function()
+    for _, p in ipairs(plugins.manager.hooks_tick) do
+        p()
+    end
+end
+
+plugins.manager.on_window_tick = function(...)
+    for _, p in ipairs(plugins.manager.hooks_window_tick) do
+        p(...)
+    end
 end
 
 plugins.load = function (name, pkg)
