@@ -9,17 +9,8 @@ plugins.load('shortkey', 'core/shortkey')
 
 plugins.shortkey.register('f1', load_user_config, 'reload user config')
 
-function gui()
-    text(plugins.log 'get')
-    plugins.shortkey.gui()
-end
-
-function on_tick()
-    plugins.manager.on_tick()
-end
-
-function on_window_tick(w, focused)
-    plugins.manager.on_window_tick(w, focused)
-end
+gui = plugins.manager.gui
+on_tick = plugins.manager.on_tick
+on_window_tick = plugins.manager.on_window_tick
 ```
 
