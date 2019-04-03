@@ -40,6 +40,7 @@ local function register(keys, fn, name)
 end
 
 local function gui()
+    text 'List of shortcuts (click to trigger)'
     for _, r in ipairs(registered) do
         local keys = r.keys
         if type(keys) == 'table' then
@@ -49,13 +50,14 @@ local function gui()
             r.fn()
         end
     end
+    text '---'
 end
 
 return {
     init=function(plugins)
-        plugins.manager.add_hook_tick(on_tick)
         log = plugins.log
     end,
+    on_tick=on_tick,
     register=register,
     check=check,
     gui=gui,

@@ -26,7 +26,8 @@ local function show_one(w)
     end
 
     win.force_geometry = true
-    win.size = w.size/3
+    local s = math.max(w.size.x, w.size.y)/3
+    win.size = ImVec2(s, s)
     win.position = w.position + w.size - win.size
     win.always_on_top = not win.always_on_top
 

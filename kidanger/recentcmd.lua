@@ -11,7 +11,6 @@ function p.init()
     local f = io.open(file, 'r')
     if not f then return end
     for l in f:lines() do
-        print(l)
         table.insert(list, l)
         has[l] = true
     end
@@ -34,7 +33,6 @@ function p.gui()
             table.remove(list, i)
             has[c] = false
             write()
-            print('removed', c)
         end
     end
 
@@ -46,7 +44,6 @@ function p.gui()
         table.insert(list, c)
         has[c] = true
         write()
-        print('add ', c)
     end
 end
 
