@@ -7,7 +7,7 @@ local plugins = {}
 plugins.manager = {}
 
 local function is_valid_plugin(p)
-    return type(p) == 'table' and p._is_plugin and p.on_tick and not p._masked
+    return type(p) == 'table' and p._is_plugin and not p._masked
 end
 
 plugins.manager.on_tick = function()
