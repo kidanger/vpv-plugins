@@ -15,7 +15,6 @@ return {init=function()
     ]]
     SHADERS['dsmrender'] = scalemap .. [[
         uniform sampler2D src;
-        uniform vec3 time;
 
         void main (void)
         {
@@ -39,11 +38,10 @@ return {init=function()
             float dx = px - pp;
             float dy = py - pp;
 
-            float t = sin(time.x / 1000. * 2.) * 3.14 / 8 + 3.14/2;
+	    float pi = 355.0/113;
+            float t = pi/4;
             float z = cos(t) * dx + sin(t) * dy;
-            z = z / ((abs(pp) + abs(px) + abs(py)) / 3);
-            z = z * 12 + 0.4;
-            z = sqrt(z * 1.5) / 1.5;
+	    z = .5  + 30 * z * scale.x;
 
             vec3 q = scalemap(texture2D(src, gl_TexCoord[0].xy).xyz);
             vec3 p = q;
