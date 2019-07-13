@@ -1,6 +1,7 @@
 return {init=function()
     SHADERS['diff'] = [[
-        uniform sampler2D src;
+        uniform sampler2D tex;
+        in vec2 f_texcoord;
         uniform vec3 scale;
 
         void main (void)
@@ -11,7 +12,7 @@ return {init=function()
             palI[1]=0.00000; palR[1]=1.00000; palG[1]=1.00000; palB[1]=1.00000;
             palI[2]=1.00000; palR[2]=1.00000; palG[2]=0.00000; palB[2]=0.00000;
 
-            vec3 q = scale * texture2D(src, gl_TexCoord[0].xy).xyz;
+            vec3 q = scale * texture(tex, f_texcoord.xy).xyz;
             vec3 p = vec3(palR[0], palG[0], palB[0]);
             for (int i = 1; i < N; i++) {
                 if (q.x >= palI[i-1] && q.x <= palI[i]) {

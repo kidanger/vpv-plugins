@@ -14,9 +14,10 @@ return {init=function()
         }
     ]]
     SHADERS['dsmrender'] = scalemap .. [[
-        uniform sampler2D src;
+        uniform sampler2D tex;
+        in vec2 f_texcoord;
 
-        void main (void)
+        void main()
         {
             //http://soliton.vm.bytemark.co.uk/pub/cpt-city/td/tn/DEM_poster.png.index.html
             float palI[8], palR[8], palG[8], palB[8];
@@ -31,10 +32,10 @@ return {init=function()
             palI[7]=1.00000; palR[7]=1.00000; palG[7]=1.00000; palB[7]=1.00000;
 
             // use texelFetchOffset to extract exact pixels (no interpolation or borders)
-            ivec2 size = textureSize(src, 0);
-            float pp = texelFetchOffset(src, ivec2(gl_TexCoord[0].xy*size), 0, ivec2(0, 0)).x;
-            float px = texelFetchOffset(src, ivec2(gl_TexCoord[0].xy*size), 0, ivec2(1, 0)).x;
-            float py = texelFetchOffset(src, ivec2(gl_TexCoord[0].xy*size), 0, ivec2(0, 1)).x;
+            ivec2 size = textureSize(tex, 0);
+            float pp = texelFetchOffset(tex, ivec2(f_texcoord.xy*size), 0, ivec2(0, 0)).x;
+            float px = texelFetchOffset(tex, ivec2(f_texcoord.xy*size), 0, ivec2(1, 0)).x;
+            float py = texelFetchOffset(tex, ivec2(f_texcoord.xy*size), 0, ivec2(0, 1)).x;
             float dx = px - pp;
             float dy = py - pp;
 
@@ -43,7 +44,7 @@ return {init=function()
             float z = cos(t) * dx + sin(t) * dy;
 	    z = .5  + 30 * z * scale.x;
 
-            vec3 q = scalemap(texture2D(src, gl_TexCoord[0].xy).xyz);
+            vec3 q = scalemap(texture(tex, f_texcoord.xy).xyz);
             vec3 p = q;
             for (int i = 1; i < N; i++) {
                 if (q.x >= palI[i-1] && q.x <= palI[i]) {
@@ -67,9 +68,10 @@ return {init=function()
 
     -- from pvflip by Gabriele Facciolo
     SHADERS['dem'] = scalemap .. [[
-        uniform sampler2D src;
+        uniform sampler2D tex;
+        in vec2 f_texcoord;
 
-        void main (void)
+        void main()
         {
             //http://soliton.vm.bytemark.co.uk/pub/cpt-city/td/tn/DEM_screen.png.index.html
             //float palI[8], palR[8], palG[8], palB[8];
@@ -104,7 +106,7 @@ return {init=function()
             palI[6]=0.81630; palR[6]=1.00000; palG[6]=1.00000; palB[6]=1.00000;
             palI[7]=1.00000; palR[7]=1.00000; palG[7]=1.00000; palB[7]=1.00000;
 
-            vec4 q = texture2D(src, gl_TexCoord[0].xy);
+            vec4 q = texture(tex, f_texcoord.xy);
 
             vec4 p;
             p.w = 1.0;
