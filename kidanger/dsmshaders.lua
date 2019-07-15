@@ -16,6 +16,7 @@ return {init=function()
     SHADERS['dsmrender'] = scalemap .. [[
         uniform sampler2D tex;
         in vec2 f_texcoord;
+        out vec4 out_color;
 
         void main()
         {
@@ -62,7 +63,7 @@ return {init=function()
             }
 
             p = p * z + 0.1;
-            gl_FragColor = vec4(p, 1.);
+            out_color = vec4(p, 1.);
         }
     ]]
 
@@ -70,6 +71,7 @@ return {init=function()
     SHADERS['dem'] = scalemap .. [[
         uniform sampler2D tex;
         in vec2 f_texcoord;
+        out vec4 out_color;
 
         void main()
         {
@@ -136,7 +138,7 @@ return {init=function()
                     p.z = palB[N-1];
                 }
             }
-            gl_FragColor = vec4(p.xyz, 1.);
+            out_color = vec4(p.xyz, 1.);
         }
     ]]
     end

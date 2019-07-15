@@ -3,6 +3,7 @@ return {init=function()
         uniform sampler2D tex;
         in vec2 f_texcoord;
         uniform vec3 scale;
+        out vec4 out_color;
 
         void main (void)
         {
@@ -30,7 +31,7 @@ return {init=function()
             if (isnan(q.x)) {
                 p = vec3(0, 0, 0);
             }
-            gl_FragColor = vec4(p, 1.);
+            out_color = vec4(p, 1.);
         }
     ]]
     end
