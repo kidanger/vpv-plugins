@@ -40,7 +40,7 @@ function on_window_tick(window, focused)
 
     local x, y = gHoveredPixel.x, gHoveredPixel.y
     local seq = window.sequences[window.index+1]
-    local img = seq.collection:get_filename(seq.player.frame+1)
+    local img = seq.collection:get_filename(seq.player.frame-1)
     if iskeypressed 'l' then
         append_point(img, x, y)
         generate_svg(seq, prev)
