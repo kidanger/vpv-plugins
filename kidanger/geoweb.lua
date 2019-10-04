@@ -1,15 +1,24 @@
+--[[
+Add this to your ~/.vpvrc:
+    plugins.load('geoweb', 'kidanger/geoweb')
+    plugins.shortkey.register('f2', plugins.geoweb.launch, 'start geoweb')
+
+You might also need to change the browser command (example for OSX):
+    plugins.geoweb.set_browser '/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome'
+]]
 
 local geofiles = {}
 local prevs = {}
 local cache = {}
 local curid = 0
+local browser = '/usr/bin/chromium-browser --user-data-dir=/home/anger/.cache/chromium-temp --allow-file-access-from-files --no-default-browser-check --no-first-run'
 
 local html = [[
 <!DOCTYPE html>
 <html>
 <head>
 	<title>Map</title>
-	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.3/dist/leaflet.css" />
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.5.1/dist/leaflet.css" />
 	<script src="https://unpkg.com/leaflet@1.0.3/dist/leaflet.js"></script>
 	<style> body {padding: 0; margin: 0; } html, body, #map {height: 100%%; width: 100%%; } </style> </head>
 <body>
@@ -25,30 +34,46 @@ var Esri_WorldImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest
 });
 Esri_WorldImagery.addTo(map);
 
-var data = {};
+var objects = [%s];
 var data_layer = null;
+var changed = false;
 
-function tick() {
+var colors = ['blue', 'green', 'red', 'yellow', 'cyan', 'pink'];
+for (var o in objects) {
+    setInterval(tick, 250, o, objects[o]);
+}
+
+function tick(i, file) {
+    check(i, file);
+    if (changed) {
+        changed = false;
+        if (data_layer)
+            data_layer.remove(map);
+
+        data_layer = new L.GeoJSON(objects, { style: function(f) {
+            var i = objects.indexOf(f.geometry);
+            return { color: colors[i%%colors.length], opacity: 0.5 };
+        }});
+        map.flyToBounds(data_layer.getBounds(), {padding: [10, 10], animate: true})
+        data_layer.addTo(map);
+    }
+}
+
+function check(i, file) {
     var xmlhttp = new XMLHttpRequest();
     xmlhttp.onreadystatechange = function(){
         if(xmlhttp.readyState == 4){
             var dat = JSON.parse(xmlhttp.responseText);
-            var eq = JSON.stringify(dat) == JSON.stringify(data);
+            var eq = JSON.stringify(dat) == JSON.stringify(objects[i]);
             if (!eq) {
-                data = dat;
-                if (data_layer)
-                    data_layer.remove(map);
-                data_layer = new L.GeoJSON(dat);
-                map.flyToBounds(data_layer.getBounds(), {padding: [10, 10], animate: true})
-                data_layer.addTo(map);
+                objects[i] = dat;
+                changed = true;
             }
         }
     };
-    xmlhttp.open("GET","%s",true);
+    xmlhttp.open("GET", file, true);
     xmlhttp.send();
 }
-
-setInterval(tick, 250);
 
 </script>
 </html>
@@ -77,22 +102,37 @@ local function generate(seq, img)
     end
 end
 
-local function launch(window)
-    local seq = window.sequences[window.index+1]
-    local id = seq:get_id()
-    local img = seq.collection:get_filename(seq.player.frame-1)
+local function set_browser(cmd)
+    browser = cmd
+end
+
+local function launch()
+    -- allocate geofiles
+    for i, seq in pairs(get_sequences()) do
+        local id = seq:get_id()
+        local img = seq.collection:get_filename(seq.player.frame-1)
+        geofiles[id] = os.tmpname()
+        generate(seq, img)
+    end
+
+    -- build and save the html page
     local page = os.tmpname() .. '.html'
-    geofiles[id] = os.tmpname()
     local file = io.open(page, 'w+')
-    file:write(html:format(geofiles[id]))
+    local list = ''
+    for _, f in pairs(geofiles) do
+        list = list .. ('%q,'):format(f)
+    end
+    file:write(html:format(list))
     file:close()
-    local cmd = ('/usr/bin/chromium-browser --user-data-dir=~/.cache/chromium-temp --allow-file-access-from-files --no-default-browser-check --no-first-run %q &'):format(page)
+
+    -- launch the browser
+    local cmd = ('%s %q &'):format(browser, page)
     print(cmd)
     os.execute(cmd)
     print('geoweb started, a browser should open.')
 end
 
-function on_window_tick(window, focused)
+local function on_window_tick(window, focused)
     local seq = window.sequences[window.index+1]
     local id = seq:get_id()
     if not geofiles[id] then return end
@@ -107,5 +147,6 @@ end
 return {
     on_window_tick=on_window_tick,
     launch=launch,
+    set_browser=set_browser,
 }
 
