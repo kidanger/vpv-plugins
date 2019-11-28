@@ -35,7 +35,7 @@ plugins.load = function (name, pkg)
             pl.init(plugins)
         end
         pl._is_plugin = true
-        print(('✔ plugin \'%s\' loaded'):format(pkg))
+        --print(('✔ plugin \'%s\' loaded'):format(pkg))
     end)
     if not status then
         print(('✗ plugin \'%s\' %s'):format(pkg, err))
