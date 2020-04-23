@@ -4,6 +4,7 @@ local path = ...
 package.path = package.path ..  ";" .. path .. "/?/init.lua;" .. path .. "/?.lua"
 
 local plugins = {}
+plugins.path = path
 plugins.manager = {}
 
 local function is_valid_plugin(p)
