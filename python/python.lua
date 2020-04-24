@@ -20,20 +20,28 @@ local function init(plugins)
 
     local fin = getfifo()
     local fout = getfifo()
-    local cmd = ('python %s/python/google-earth-cursor.py %s %s &'):format(plugins.path, fin, fout)
+    local cmd = ('python %s/python/plugins.py %s %s &'):format(plugins.path, fin, fout)
     lib.launch(fin, fout, cmd)
+    lib.call('init')
 end
 
-local function on_window_tick(window, focused)
-    if focused then
-        curwin = window
-    end
-    lib.call('on_window_tick', focused)
+local function on_tick(...)
+    lib.call('on_tick', ...)
+end
+
+local function on_window_tick(w, focused)
+    if focused then curwin = w end
+    lib.call('on_window_tick', w.id, focused)
+end
+
+local function load(...)
+    lib.call('load', ...)
 end
 
 return {
     init=init,
+    on_tick=on_tick,
     on_window_tick=on_window_tick,
+    load=load,
 }
-
 
