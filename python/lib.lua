@@ -29,7 +29,7 @@ local function call(func, ...)
    fin:flush()
 
    local nn = assert(fout:read('*number'))
-   line = json.decode(assert(fout:read('*l')))
+   local line = json.decode(assert(fout:read('*l')))
 
    while nn ~= id do
       local msg = json.encode {type='reply', response=evaluate(line)}
