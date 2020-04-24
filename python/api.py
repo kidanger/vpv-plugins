@@ -22,6 +22,11 @@ def window_is_focused(win: WinId):
 def window_get_current_filename(win: WinId):
     return con.call('window_get_current_filename', win)
 
+def get_focused_window():
+    for w in get_windows():
+        if w.focused:
+            return w
+
 
 class Window:
 

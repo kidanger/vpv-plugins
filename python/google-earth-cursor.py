@@ -6,11 +6,7 @@ except ImportError as e:
     print('Cannot import rpcm:', e)
 
 def on_tick():
-    curwin = None
-    for w in get_windows():
-        if w.focused:
-            curwin = w
-            break
+    curwin = get_focused_window()
     if curwin and is_mouse_clicked(2):
         x, y = get_mouse_position()
         img = curwin.current_filename
