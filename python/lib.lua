@@ -15,33 +15,31 @@ end
 local lastid = 0
 
 local function evaluate(msg)
-   local func = msg.func
+   local func = msg.method
    local chunk = assert(load('return ' .. func))
-   local res = chunk()(table.unpack(msg.args))
+   local res = chunk()(table.unpack(msg.params))
    return res
 end
 
 local function call(func, ...)
    lastid = lastid - 1
    local id = lastid
-   local msg = json.encode {type='request', func=func, args={...}}
-   fin:write(tostring(id) .. ' ' .. msg .. '\n')
+   local msg = json.encode {id=id, method=func, params={...}}
+   fin:write(msg .. '\n')
    fin:flush()
 
-   local nn = assert(fout:read('*number'))
    local line = json.decode(assert(fout:read('*l')))
 
-   while nn ~= id do
-      local msg = json.encode {type='reply', response=evaluate(line)}
-      fin:write(tostring(nn) .. ' ' .. msg .. '\n')
+   while line.id ~= id do
+      local msg = json.encode {id=line.id, result=evaluate(line)}
+      fin:write(msg .. '\n')
       fin:flush()
 
-      nn = assert(fout:read('*number'))
       line = json.decode(assert(fout:read('*l')))
    end
 
    lastid = lastid + 1
-   return line.response
+   return line.result
 end
 
 return {
