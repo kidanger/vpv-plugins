@@ -24,7 +24,7 @@ class Connection:
             r = self.receive()
 
         self.lastid -= 1
-        return r['result']
+        return r['result'] if 'result' in r else None
 
     def send(self, msg):
         dat = json.dumps(msg)
