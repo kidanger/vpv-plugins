@@ -23,7 +23,7 @@ def on_window_tick(*args):
             p.on_window_tick(*args)
 
 def rpc_evaluator(func, *args):
-    return eval(func)(*args)
+    return globals()[func](*args)
 
 if __name__ == '__main__':
     import sys

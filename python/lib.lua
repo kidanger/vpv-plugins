@@ -1,26 +1,23 @@
 local json = require 'json'
 
-local function trim(s)
-   return s:match'^%s*(.*%S)' or ''
-end
-
 local fout
 local fin
-local function launch(fin_, fout_, cmd)
+local api
+local function launch(fin_, fout_, cmd, api_)
    os.execute(cmd)
    fout = io.open(fout_, 'r')
    fin = io.open(fin_, 'w')
+   api = api_
+end
+
+local function evaluate(msg)
+   if not api[msg.method] then
+      print('API error:', msg.method)
+   end
+   return api[msg.method](table.unpack(msg.params))
 end
 
 local lastid = 0
-
-local function evaluate(msg)
-   local func = msg.method
-   local chunk = assert(load('return ' .. func))
-   local res = chunk()(table.unpack(msg.params))
-   return res
-end
-
 local function call(func, ...)
    lastid = lastid - 1
    local id = lastid
