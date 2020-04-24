@@ -6,9 +6,14 @@ except ImportError as e:
     print('Cannot import rpcm:', e)
 
 def on_tick():
-    if is_mouse_clicked(2):
+    curwin = None
+    for w in get_windows():
+        if w.focused:
+            curwin = w
+            break
+    if curwin and is_mouse_clicked(2):
         x, y = get_mouse_position()
-        img = get_current_filename()
+        img = curwin.current_filename
         try:
             lon, lat = rpcm.localization(img, x, y, 0)
         except Exception as e:

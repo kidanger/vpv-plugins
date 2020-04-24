@@ -1,14 +1,35 @@
 local lib
-
 local curwin
 
+local function str2win(str)
+    for i, w in pairs(get_windows()) do
+        if w.id == str then
+            return w
+        end
+    end
+end
+
 local api = {
+    -- EVENT
     ismouseclicked=ismouseclicked,
-    get_mouse_position=function ()
+    get_mouse_position=function()
         return {gHoveredPixel.x, gHoveredPixel.y}
     end,
-    get_current_filename=function ()
-        local seq = curwin.sequences[curwin.index+1]
+
+    -- WINDOW
+    get_windows=function()
+        local wins = {}
+        for i, w in pairs(get_windows()) do
+            table.insert(wins, w.id)
+        end
+        return wins
+    end,
+    window_is_focused=function(win)
+        return win == curwin.id
+    end,
+    window_get_current_filename=function(winstr)
+        local win = str2win(winstr)
+        local seq = win.sequences[win.index+1]
         local filename = seq.collection:get_filename(seq.player.frame - 1)
         return filename
     end,
