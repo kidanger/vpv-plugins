@@ -1,3 +1,6 @@
+import typing
+
+WinId = typing.NewType('WinId', str)
 
 con = None
 
@@ -11,18 +14,18 @@ def get_current_filename():
     return con.call('get_current_filename')
 
 def get_windows():
-    return [Window(w) for w in con.call('get_windows')]
+    return [Window(WinId(w)) for w in con.call('get_windows')]
 
-def window_is_focused(win: str):
+def window_is_focused(win: WinId):
     return con.call('window_is_focused', win)
 
-def window_get_current_filename(win: str):
+def window_get_current_filename(win: WinId):
     return con.call('window_get_current_filename', win)
 
 
 class Window:
 
-    def __init__(self, id):
+    def __init__(self, id: WinId):
         self.id = id
 
     @property
