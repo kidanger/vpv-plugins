@@ -5,10 +5,7 @@ try:
 except ImportError as e:
     print('Cannot import rpcm:', e)
 
-def on_window_tick(window, focused):
-    if not focused:
-        return
-
+def on_tick():
     if is_mouse_clicked(2):
         x, y = get_mouse_position()
         img = get_current_filename()
