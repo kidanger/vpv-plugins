@@ -25,7 +25,7 @@ local api = {
         return wins
     end,
     window_is_focused=function(win)
-        return win == curwin.id
+        return curwin and win == curwin.id
     end,
     window_get_current_filename=function(winstr)
         local win = str2win(winstr)
