@@ -6,7 +6,7 @@ def load(name):
     p = __import__(name)
     plugins.append(p)
     if hasattr(p, 'init'):
-        p.init(*args)
+        p.init()
     print(f'plugin {name} loaded as {p}')
 
 def init():
