@@ -22,13 +22,27 @@ local function str2view(str)
         end
     end
 end
+local function str2player(str)
+    for i, p in pairs(get_players()) do
+        if p.id == str then
+            return p
+        end
+    end
+end
 
 local api = {
+    config_get=function(key)
+        return _G[key]
+    end,
+    config_set=function(key, val)
+        _G[key] = val
+    end,
     reload=function()
         reload()
     end,
 
     -- EVENT
+    is_key_pressed=iskeypressed,
     is_key_down=iskeydown,
     is_key_up=iskeyup,
     is_mouse_clicked=ismouseclicked,
@@ -85,6 +99,10 @@ local api = {
         local filename = seq.collection:get_filename(seq.player.frame - 1)
         return filename
     end,
+    window_take_screenshot=function(id)
+        local win = str2win(id)
+        win.screenshot = true
+    end,
 
     -- SEQUENCE
     new_sequence=function()
@@ -99,7 +117,15 @@ local api = {
     end,
     sequence_get_view=function(id)
         local seq = str2seq(id)
-        return seq.view.id
+        return seq.view and seq.view.id
+    end,
+    sequence_get_player=function(id)
+        local seq = str2seq(id)
+        return seq.player and seq.player.id
+    end,
+    sequence_get_image=function(id)
+        local seq = str2seq(id)
+        return seq.image and seq.image.id
     end,
 
     -- VIEW
@@ -128,6 +154,85 @@ local api = {
     view_set_zoom=function(id, val)
         local view = str2view(id)
         view.zoom = val
+    end,
+
+    -- PLAYER
+    new_player=function()
+        return new_player().id
+    end,
+    get_players=function()
+        local players = {}
+        for i, v in pairs(get_players()) do
+            table.insert(players, v.id)
+        end
+        return players
+    end,
+    player_get_frame=function(id)
+        local player = str2player(id)
+        return player.frame
+    end,
+    player_set_frame=function(id, val)
+        local player = str2player(id)
+        player.frame = val
+        player:check_bounds()
+    end,
+    player_get_fps=function(id)
+        local player = str2player(id)
+        return player.fps
+    end,
+    player_set_fps=function(id, val)
+        local player = str2player(id)
+        player.fps = val
+    end,
+    player_get_playing=function(id)
+        local player = str2player(id)
+        return player.playing
+    end,
+    player_set_playing=function(id, val)
+        local player = str2player(id)
+        player.playing = val
+    end,
+    player_get_bouncy=function(id)
+        local player = str2player(id)
+        return player.bouncy
+    end,
+    player_set_bouncy=function(id, val)
+        local player = str2player(id)
+        player.bouncy = val
+    end,
+    player_get_opened=function(id)
+        local player = str2player(id)
+        return player.opened
+    end,
+    player_set_opened=function(id, val)
+        local player = str2player(id)
+        player.opened = val
+    end,
+    player_get_current_min_frame=function(id)
+        local player = str2player(id)
+        return player.current_min_frame
+    end,
+    player_set_current_min_frame=function(id, val)
+        local player = str2player(id)
+        player.current_min_frame = val
+        player:check_bounds()
+    end,
+    player_get_current_max_frame=function(id)
+        local player = str2player(id)
+        return player.current_max_frame
+    end,
+    player_set_current_max_frame=function(id, val)
+        local player = str2player(id)
+        player.current_max_frame = val
+        player:check_bounds()
+    end,
+    player_get_min_frame=function(id)
+        local player = str2player(id)
+        return player.min_frame
+    end,
+    player_get_max_frame=function(id)
+        local player = str2player(id)
+        return player.max_frame
     end,
 }
 

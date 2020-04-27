@@ -7,6 +7,15 @@ con = None
 def reload_images() -> None:
     return con.call('reload')
 
+def set_config(key: str, val):
+    return con.call('config_set', key, val)
+
+def get_config(key: str):
+    return con.call('config_get', key)
+
+def is_key_pressed(key: str) -> bool:
+    return con.call('is_key_pressed', key)
+
 def is_key_down(key: str) -> bool:
     return con.call('is_key_down', key)
 
@@ -66,6 +75,9 @@ class Window:
     def current_filename(self) -> str:
         return con.call('window_get_current_filename', self.id)
 
+    def take_screenshot(self):
+        return con.call('window_take_screenshot', self.id)
+
 def new_window() -> Window:
     return Window(con.call('new_window'))
 
@@ -85,7 +97,21 @@ class Sequence:
 
     @property
     def view(self):
-        return View(con.call('sequence_get_view', self.id))
+        id = con.call('sequence_get_view', self.id)
+        assert id
+        return View(id)
+
+    @property
+    def player(self):
+        id = con.call('sequence_get_player', self.id)
+        assert id
+        return Player(id)
+
+    @property
+    def image(self):
+        id = con.call('sequence_get_image', self.id)
+        assert id
+        return Image(id)
 
 def new_sequence() -> Sequence:
     return Sequence(con.call('new_sequence'))
@@ -120,4 +146,86 @@ def new_view() -> View:
 
 def get_views() -> List[View]:
     return [View(v) for v in con.call('get_views')]
+
+
+class Player:
+
+    def __init__(self, id):
+        self.id = id
+
+    @property
+    def frame(self) -> int:
+        return con.call('player_get_frame', self.id)
+
+    @frame.setter
+    def frame(self, frame: int):
+        return con.call('player_set_frame', self.id, frame)
+
+    @property
+    def fps(self) -> float:
+        return con.call('player_get_fps', self.id)
+
+    @fps.setter
+    def fps(self, fps: float):
+        return con.call('player_set_fps', self.id, fps)
+
+    @property
+    def playing(self) -> bool:
+        return con.call('player_get_playing', self.id)
+
+    @playing.setter
+    def playing(self, playing: bool):
+        return con.call('player_set_playing', self.id, playing)
+
+    @property
+    def bouncy(self) -> bool:
+        return con.call('player_get_bouncy', self.id)
+
+    @bouncy.setter
+    def bouncy(self, bouncy: bool):
+        return con.call('player_set_bouncy', self.id, bouncy)
+
+    @property
+    def opened(self) -> bool:
+        return con.call('player_get_opened', self.id)
+
+    @opened.setter
+    def opened(self, opened: bool):
+        return con.call('player_set_opened', self.id, opened)
+
+    @property
+    def current_max_frame(self) -> int:
+        return con.call('player_get_current_max_frame', self.id)
+
+    @current_max_frame.setter
+    def current_max_frame(self, current_max_frame: int):
+        return con.call('player_set_current_max_frame', self.id, current_max_frame)
+
+    @property
+    def current_min_frame(self) -> int:
+        return con.call('player_get_current_min_frame', self.id)
+
+    @current_min_frame.setter
+    def current_min_frame(self, current_min_frame: int):
+        return con.call('player_set_current_min_frame', self.id, current_min_frame)
+
+    @property
+    def max_frame(self) -> int:
+        return con.call('player_get_max_frame', self.id)
+
+    @property
+    def min_frame(self) -> int:
+        return con.call('player_get_min_frame', self.id)
+
+def new_player() -> Player:
+    return Player(con.call('new_player'))
+
+def get_players() -> List[Player]:
+    return [Player(p) for p in con.call('get_players')]
+
+
+class Image:
+
+    def __init__(self, id):
+        self.id = id
 
