@@ -1,15 +1,14 @@
 from api import *
 
-try:
-    import rpcm
-except ImportError as e:
-    print('Cannot import rpcm:', e)
-
 def on_tick():
     curwin = get_focused_window()
     if curwin and is_mouse_clicked(2):
         x, y = get_mouse_position()
         img = curwin.current_filename
+        try:
+            import rpcm
+        except ImportError as e:
+            print('Cannot import rpcm:', e)
         try:
             lon, lat = rpcm.localization(img, x, y, 0)
         except Exception as e:
