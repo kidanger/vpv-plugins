@@ -3,11 +3,14 @@ import api
 plugins = []
 
 def load(name):
-    p = __import__(name)
-    plugins.append(p)
-    if hasattr(p, 'init'):
-        p.init()
-    print(f'plugin {name} loaded as {p}')
+    try:
+        p = __import__(name)
+        plugins.append(p)
+        if hasattr(p, 'init'):
+            p.init()
+        print(f'plugin {name} loaded as {p}')
+    except Exception as e:
+        print('could not load plugin {}: {}'.format(name, e))
 
 def init():
     pass
@@ -15,7 +18,11 @@ def init():
 def on_tick(*args):
     for p in plugins:
         if hasattr(p, 'on_tick'):
-            p.on_tick(*args)
+            try:
+                p.on_tick(*args)
+            except Exception as e:
+                print('error while calling `on_tick` for plugin {}: {}. Plugin disabled.'.format(p.__name__, e))
+                plugins.remove(p)
 
 def on_window_tick(*args):
     for p in plugins:
