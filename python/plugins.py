@@ -1,4 +1,6 @@
 import api
+import sys
+import traceback
 
 plugins = []
 
@@ -10,7 +12,8 @@ def load(name):
             p.init()
         print(f'plugin {name} loaded as {p}')
     except Exception as e:
-        print('could not load plugin {}: {}'.format(name, e))
+        traceback.print_exc()
+        print('Could not load plugin {}.'.format(name))
 
 def init():
     pass
@@ -21,7 +24,8 @@ def on_tick(*args):
             try:
                 p.on_tick(*args)
             except Exception as e:
-                print('error while calling `on_tick` for plugin {}: {}. Plugin disabled.'.format(p.__name__, e))
+                traceback.print_exc()
+                print('Error while calling `on_tick` for plugin {}. Plugin disabled.'.format(p.__name__))
                 plugins.remove(p)
 
 def on_window_tick(*args):
