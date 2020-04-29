@@ -13,14 +13,14 @@ def set_config(key: str, val):
 def get_config(key: str):
     return con.call('config_get', key)
 
-def is_key_pressed(key: str) -> bool:
-    return con.call('is_key_pressed', key)
+def is_key_pressed(key: str, repeat: bool=True) -> bool:
+    return con.call('is_key_pressed', key, repeat)
 
 def is_key_down(key: str) -> bool:
     return con.call('is_key_down', key)
 
-def is_key_up(key: str) -> bool:
-    return con.call('is_key_up', key)
+def is_key_released(key: str) -> bool:
+    return con.call('is_key_released', key)
 
 def is_mouse_clicked(button: int) -> bool:
     return con.call('is_mouse_clicked', button)
@@ -110,8 +110,7 @@ class Sequence:
     @property
     def image(self):
         id = con.call('sequence_get_image', self.id)
-        assert id
-        return Image(id)
+        return id and Image(id)
 
 def new_sequence() -> Sequence:
     return Sequence(con.call('new_sequence'))
@@ -228,4 +227,7 @@ class Image:
 
     def __init__(self, id):
         self.id = id
+
+    def get_pixels_from_coords(self, xs, ys) -> List[List[float]]:
+        return con.call('image_get_pixels_from_coords', self.id, xs, ys)
 
