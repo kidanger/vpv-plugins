@@ -29,6 +29,9 @@ local function str2player(str)
         end
     end
 end
+local function str2image(str)
+    return get_image_by_id(str)
+end
 
 local api = {
     config_get=function(key)
@@ -44,7 +47,7 @@ local api = {
     -- EVENT
     is_key_pressed=iskeypressed,
     is_key_down=iskeydown,
-    is_key_up=iskeyup,
+    is_key_released=iskeyreleased,
     is_mouse_clicked=ismouseclicked,
     get_mouse_position=function()
         return {gHoveredPixel.x, gHoveredPixel.y}
@@ -233,6 +236,12 @@ local api = {
     player_get_max_frame=function(id)
         local player = str2player(id)
         return player.max_frame
+    end,
+
+    -- IMAGE
+    image_get_pixels_from_coords=function(id, xs, ys)
+        local im = str2image(id)
+        return image_get_pixels_from_coords(im, xs, ys)
     end,
 }
 
