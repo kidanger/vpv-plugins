@@ -64,7 +64,8 @@ class Window:
 
     @property
     def current_sequence(self):
-        return Sequence(con.call('window_get_current_sequence', self.id))
+        seq = con.call('window_get_current_sequence', self.id)
+        return seq and Sequence(seq)
 
 # .addProperty("index", &Window::index)
 # .addProperty("sequences", &Window::sequences)
@@ -111,6 +112,9 @@ class Sequence:
     def image(self):
         id = con.call('sequence_get_image', self.id)
         return id and Image(id)
+
+    def put_script_svg(self, key: str, value: str="") -> bool:
+        return con.call('sequence_put_script_svg', self.id, key, value)
 
 def new_sequence() -> Sequence:
     return Sequence(con.call('new_sequence'))

@@ -130,6 +130,10 @@ local api = {
         local seq = str2seq(id)
         return seq.image and seq.image.id
     end,
+    sequence_put_script_svg=function(id, key, code)
+        local seq = str2seq(id)
+        return seq:put_script_svg(key, code)
+    end,
 
     -- VIEW
     new_view=function()
