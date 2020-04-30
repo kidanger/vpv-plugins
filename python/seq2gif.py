@@ -7,7 +7,7 @@ win = None
 oldconfigscreenshot = None
 FILES = '/tmp/screenshot_%05d.png'
 ALLFILES = '/tmp/screenshot_*.png'
-OUTPUT = '/tmp/out.gif'
+OUTPUT = '/tmp/out_%03d.gif'
 
 frames = []
 hasframe = {}
@@ -20,7 +20,7 @@ def on_tick():
         seq = win.current_sequence
         player = seq.player
         player.frame = 1
-        frames = list(range(player.current_min_frame, player.current_max_frame+1))
+        frames = []
         hasframe = {}
         player.opened = True
         player.playing = False
@@ -43,6 +43,11 @@ def on_tick():
 
     if seq.player.opened:
         return
+    elif not frames:
+        player = seq.player
+        player.frame = player.current_min_frame
+        frames = list(range(player.current_min_frame, player.current_max_frame+1))
+        player.playing = False
 
     seq.player.frame += 1
 
@@ -57,12 +62,18 @@ def on_tick():
             hasall = False
             break
 
-    if hasall and seq.player.frame == frames[1]:
+    if hasall and seq.player.frame == frames[2]:
         set_config('SCREENSHOT', oldconfigscreenshot)
         files = [FILES % i for i in range(1, len(frames)+1)]
         if seq.player.bouncy:
             files += files[-2:0:-1]
-        cmd = 'echo "Converting to gif..." && convert -delay 1x{} {} {} && echo "All done!" &'.format(seq.player.fps, ' '.join(files), OUTPUT)
+        n = 0
+        while True:
+            output = OUTPUT % n
+            if not os.path.exists(output):
+                break
+            n += 1
+        cmd = 'echo "Converting to gif..." && convert -delay 1x{} {} {} && echo "All done!" &'.format(seq.player.fps, ' '.join(files), output)
         print(cmd)
         os.system(cmd)
         seq = None
