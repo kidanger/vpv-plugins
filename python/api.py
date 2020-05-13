@@ -29,10 +29,19 @@ def get_mouse_position() -> Vec2i:
     return con.call('get_mouse_position')
 
 
-class Window:
+class _Ided:
 
     def __init__(self, id):
         self.id = id
+
+    def __eq__(self, o):
+        return self.id == o.id
+
+    def __hash__(self):
+        return hash(self.id)
+
+
+class Window(_Ided):
 
     @property
     def focused(self) -> bool:
@@ -91,10 +100,7 @@ def get_focused_window() -> Window:
             return w
 
 
-class Sequence:
-
-    def __init__(self, id):
-        self.id = id
+class Sequence(_Ided):
 
     @property
     def view(self):
@@ -123,10 +129,7 @@ def get_sequences() -> List[Sequence]:
     return [Sequence(s) for s in con.call('get_sequences')]
 
 
-class View:
-
-    def __init__(self, id):
-        self.id = id
+class View(_Ided):
 
     @property
     def center(self) -> Vec2i:
@@ -151,10 +154,7 @@ def get_views() -> List[View]:
     return [View(v) for v in con.call('get_views')]
 
 
-class Player:
-
-    def __init__(self, id):
-        self.id = id
+class Player(_Ided):
 
     @property
     def frame(self) -> int:
@@ -227,10 +227,7 @@ def get_players() -> List[Player]:
     return [Player(p) for p in con.call('get_players')]
 
 
-class Image:
-
-    def __init__(self, id):
-        self.id = id
+class Image(_Ided):
 
     def get_pixels_from_coords(self, xs, ys) -> List[List[float]]:
         return con.call('image_get_pixels_from_coords', self.id, xs, ys)
