@@ -264,7 +264,7 @@ local function init(plugins)
 
     local fin = getfifo()
     local fout = getfifo()
-    local cmd = ('python %s/python/plugins.py %s %s &'):format(plugins.path, fin, fout)
+    local cmd = ('python3 %s/python/plugins.py %s %s &'):format(plugins.path, fin, fout)
     lib.launch(fin, fout, cmd, api)
     lib.call('init')
 end
