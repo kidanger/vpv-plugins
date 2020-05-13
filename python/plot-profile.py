@@ -43,10 +43,8 @@ def trace(seq, image, start, end):
     samples = np.array(image.get_pixels_from_coords(*zip(*pos)))
 
     # function to convert samples into the plot coordinates
-    ma = np.max(samples)
-    mi = np.min(samples)
+    mi, ma = seq.colormap.get_range(image.channels)
     def plot(samples):
-        # TODO: normalize using the colormap
         s = [(dist(p)*W, (1-(s-mi)/(ma-mi))*H) for p, s in zip(pos, samples)]
         return [(x,y) for x, y in s]
 
