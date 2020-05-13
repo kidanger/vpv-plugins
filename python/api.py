@@ -115,6 +115,12 @@ class Sequence(_Ided):
         return Player(id)
 
     @property
+    def colormap(self):
+        id = con.call('sequence_get_colormap', self.id)
+        assert id
+        return id and Colormap(id)
+
+    @property
     def image(self):
         id = con.call('sequence_get_image', self.id)
         return id and Image(id)
@@ -227,7 +233,21 @@ def get_players() -> List[Player]:
     return [Player(p) for p in con.call('get_players')]
 
 
+class Colormap(_Ided):
+
+    def get_range(self, n: int) -> List[float]:
+        return con.call('colormap_get_range', self.id, n)
+
+
 class Image(_Ided):
+
+    @property
+    def size(self) -> Vec2i:
+        return con.call('image_get_size', self.id)
+
+    @property
+    def channels(self) -> int:
+        return con.call('image_get_channels', self.id)
 
     def get_pixels_from_coords(self, xs, ys) -> List[List[float]]:
         return con.call('image_get_pixels_from_coords', self.id, xs, ys)

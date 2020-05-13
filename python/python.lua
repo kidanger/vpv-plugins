@@ -29,6 +29,13 @@ local function str2player(str)
         end
     end
 end
+local function str2colormap(str)
+    for i, p in pairs(get_colormaps()) do
+        if p.id == str then
+            return p
+        end
+    end
+end
 local function str2image(str)
     return get_image_by_id(str)
 end
@@ -125,6 +132,10 @@ local api = {
     sequence_get_player=function(id)
         local seq = str2seq(id)
         return seq.player and seq.player.id
+    end,
+    sequence_get_colormap=function(id)
+        local seq = str2seq(id)
+        return seq.colormap and seq.colormap.id
     end,
     sequence_get_image=function(id)
         local seq = str2seq(id)
@@ -242,7 +253,22 @@ local api = {
         return player.max_frame
     end,
 
+    -- COLORMAP
+    colormap_get_range=function(id, n)
+        local colormap = str2colormap(id)
+        return {colormap:get_range(n)}
+    end,
+
     -- IMAGE
+    image_get_size=function(id)
+        local im = str2image(id)
+        local size = im.size
+        return {size.x, size.y}
+    end,
+    image_get_channels=function(id)
+        local im = str2image(id)
+        return im.channels
+    end,
     image_get_pixels_from_coords=function(id, xs, ys)
         local im = str2image(id)
         return image_get_pixels_from_coords(im, xs, ys)
