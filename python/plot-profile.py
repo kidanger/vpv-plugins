@@ -73,46 +73,54 @@ points="{' '.join(str(x)+','+str(y) for x, y in plot(samples[:,i]))}"/>
 def clear(seq):
     seq.put_script_svg('plot-profile')
 
-start = None
-end = None
-closed = False
-curimage = None
+curimages = {}
+curselections = {}
 
 def on_tick():
+    global curimages
     window = get_focused_window()
     if not window or not window.current_sequence:
         return
 
     seq = window.current_sequence
+    view = seq.view
 
-    global start, end, curimage, closed
+    if not view:
+        return
 
     changed = False
 
-    if start and not closed:
+    if is_key_pressed('x', repeat=False):
+        curselections[view] = {'start': get_mouse_position(), 'end': None, 'closed': False}
+
+    sel = None
+    if view in curselections:
+        sel = curselections[view]
+
+    if sel and sel['start'] and not sel['closed']:
         end_ = get_mouse_position()
-        if end_ != end:
-            end = end_
+        if end_ != sel['end']:
+            sel['end'] = end_
             changed = True
 
-    if is_key_pressed('x', repeat=False):
-        start = get_mouse_position()
-        end = None
-        closed = False
-    if is_key_released('x'):
-        curimage = None
-        closed = True
-        if get_mouse_position() == start:
-            start = None
-            end = None
-            closed = False
-            clear(seq)
+    if sel and is_key_released('x'):
+        curimages = {}
+        sel['closed'] = True
+        if get_mouse_position() == sel['start']:
+            del curselections[view]
+            for s in get_sequences():
+                if s.view == view:
+                    clear(s)
 
-    # TODO: support many sequences at the same time (require add-svg-from-code)
-
-    image = seq.image
-    isanewimage = image and (image.id != curimage.id if curimage else True)
-    if (isanewimage or changed) and start and end:
-        curimage = image
-        trace(seq, image, start, end)
+    for seq in get_sequences():
+        if not seq.view or not seq.image:
+            continue
+        if seq.view not in curselections:
+            continue
+        sel = curselections[seq.view]
+        im = seq.image
+        isanewimage = im != curimages[seq] if seq in curimages else True
+        if (isanewimage or changed) and sel['start'] and sel['end']:
+            curimages[seq] = im
+            trace(seq, im, sel['start'], sel['end'])
 
