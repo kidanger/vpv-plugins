@@ -15,7 +15,10 @@ local function align(seq)
     local filenames = {}
     for i = 0, seq.collection:get_length()-1 do
         local f = seq.collection:get_filename(i)
-        filenames[basename(f)] = f
+        local name = basename(f)
+        if name then
+            filenames[name] = f
+        end
     end
 
     local kept = {}
