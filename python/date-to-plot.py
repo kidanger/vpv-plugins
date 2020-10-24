@@ -21,6 +21,8 @@ def on_tick():
     imgs = [w.current_filename for w in get_windows()]
     if imgs == imgscache:
         return
+    imgscache = imgs
+
     if not coords:
         for w in get_windows():
             seq = w.current_sequence
@@ -37,13 +39,17 @@ def on_tick():
             coords = list(coords)
             seq_that_uses_coords = seq
 
-    imgscache = imgs
+    seq = seq_that_uses_coords
 
     dates = [re.search(r'[^\d](\d\d\d\d\d\d\d\d)t', img) for img in imgs]
     dates = filter(lambda d: d, dates)
     dates = map(lambda d: d.group(1), dates)
     dates = map(lambda d: parsesatdate(d), dates)
-    curdate = next(dates)
+    try:
+        curdate = next(dates)
+    except StopIteration:
+        seq.put_script_svg('date-to-plot')
+        return
 
     try:
         idx = next(i for i, c in enumerate(coords) if c[0] > curdate)
@@ -57,7 +63,6 @@ def on_tick():
     endx = coords[min(idx+1,len(coords)-1)][1]
     startx += (midx - startx) / 2
     endx -= (endx - midx) / 2
-    seq = seq_that_uses_coords
 
     code = f'''
         <svg width="1" height="1">
