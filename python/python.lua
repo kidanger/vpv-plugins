@@ -59,6 +59,13 @@ local api = {
     get_mouse_position=function()
         return {gHoveredPixel.x, gHoveredPixel.y}
     end,
+    get_selection=function()
+        if not selection_is_shown() then
+            return nil
+        end
+        return {{gSelectionFrom.x,gSelectionFrom.y},
+                {gSelectionTo.x, gSelectionTo.y}}
+    end,
 
     -- WINDOW
     new_window=function()
@@ -140,6 +147,10 @@ local api = {
     sequence_get_image=function(id)
         local seq = str2seq(id)
         return seq.image and seq.image.id
+    end,
+    sequence_get_collection=function(id)
+        local seq = str2seq(id)
+        return seq.collection and seq.id  -- collections have no id
     end,
     sequence_put_script_svg=function(id, key, code)
         local seq = str2seq(id)
@@ -272,6 +283,16 @@ local api = {
     image_get_pixels_from_coords=function(id, xs, ys)
         local im = str2image(id)
         return image_get_pixels_from_coords(im, xs, ys)
+    end,
+
+    -- COLLECTION
+    collection_get_filename=function(id, index)
+        local seq = str2seq(id)
+        return seq.collection:get_filename(index)
+    end,
+    collection_get_length=function(id)
+        local seq = str2seq(id)
+        return seq.collection:get_length()
     end,
 }
 

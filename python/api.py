@@ -28,6 +28,8 @@ def is_mouse_clicked(button: int) -> bool:
 def get_mouse_position() -> Vec2i:
     return con.call('get_mouse_position')
 
+def get_selection() -> Tuple[Vec2i,Vec2i]:
+    return con.call('get_selection')
 
 class _Ided:
 
@@ -124,6 +126,11 @@ class Sequence(_Ided):
     def image(self):
         id = con.call('sequence_get_image', self.id)
         return id and Image(id)
+
+    @property
+    def collection(self):
+        id = con.call('sequence_get_collection', self.id)
+        return id and ImageCollection(id)
 
     def put_script_svg(self, key: str, value: str="") -> bool:
         return con.call('sequence_put_script_svg', self.id, key, value)
@@ -251,4 +258,13 @@ class Image(_Ided):
 
     def get_pixels_from_coords(self, xs, ys) -> List[List[float]]:
         return con.call('image_get_pixels_from_coords', self.id, xs, ys)
+
+class ImageCollection(_Ided):
+
+    @property
+    def length(self) -> int:
+        return con.call('collection_get_length', self.id)
+
+    def get_filename(self, index: int) -> str:
+        return con.call('collection_get_filename', self.id, index)
 
