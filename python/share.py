@@ -37,6 +37,7 @@ import threading
 import functools
 import subprocess
 
+import urllib.parse
 import http.server
 from RangeHTTPServer import RangeRequestHandler
 
@@ -80,6 +81,7 @@ def on_tick():
                 name = col.get_filename(i)
                 newname = name.replace('/', '%')
                 os.symlink(os.path.realpath(name), os.path.join(tmpdir.name, newname))
+                newname = urllib.parse.quote_plus(newname)
                 urlname = f'/vsicurl/{remote_url}/{newname}'
                 urlnames.append(urlname)
             seqs.append('::'.join(urlnames))
