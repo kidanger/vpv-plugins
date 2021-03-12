@@ -17,7 +17,7 @@ return {init=function()
         }
         void main()
         {
-            vec3 q = texture(tex, f_texcoord.xy).xyz * scale * 1000.;
+            vec3 q = texture(tex, f_texcoord.xy).xyz * scale;
             vec3 a = tonemap(q);
             out_color = vec4(a, 1.);
         }
