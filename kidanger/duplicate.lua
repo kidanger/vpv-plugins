@@ -3,7 +3,6 @@ local function frame(s, filename)
     local player = new_player()
     local seqk = new_sequence(s.colormap, player, s.view)
     seqk:set_glob(filename)
-    seqk:load_filenames()
     local win = new_window()
     win.sequences = { seqk }
 end

@@ -30,9 +30,8 @@ local function align(seq)
         end
     end
 
-    local glob = table.concat(kept, ':')
+    local glob = table.concat(kept, '::')
     seq:set_glob(glob)
-    seq:load_filenames()
 end
 
 return {
