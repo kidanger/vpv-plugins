@@ -3,12 +3,13 @@ from dateutil.parser import parse
 
 from api import get_windows
 
-datere = re.compile(r'.*(\d{8}([tT]\d{6})?).*')
+datere = re.compile(r'.*(\d{4}-?\d{2}-?\d{2}([tT]\d{6})?).*')
 
 def on_tick():
     for w in get_windows():
         filename = w.current_filename
         seq = w.current_sequence
+        seq.put_script_svg('date', '')
         if not filename: continue
         if not seq: continue
         date = datere.match(filename)
