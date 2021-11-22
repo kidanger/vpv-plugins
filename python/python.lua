@@ -269,6 +269,30 @@ local api = {
         local colormap = str2colormap(id)
         return {colormap:get_range(n)}
     end,
+    colormap_get_shader=function(id)
+        local colormap = str2colormap(id)
+        return colormap:get_shader()
+    end,
+    colormap_set_shader=function(id, shader)
+        local colormap = str2colormap(id)
+        return colormap:set_shader(shader)
+    end,
+    colormap_get_center=function(id)
+        local colormap = str2colormap(id)
+        return colormap.center
+    end,
+    colormap_set_center=function(id, center)
+        local colormap = str2colormap(id)
+        colormap.center = center
+    end,
+    colormap_get_radius=function(id)
+        local colormap = str2colormap(id)
+        return colormap.radius
+    end,
+    colormap_set_radius=function(id, radius)
+        local colormap = str2colormap(id)
+        colormap.radius = radius
+    end,
 
     -- IMAGE
     image_get_size=function(id)

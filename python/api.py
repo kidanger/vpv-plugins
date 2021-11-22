@@ -245,6 +245,29 @@ class Colormap(_Ided):
     def get_range(self, n: int) -> List[float]:
         return con.call('colormap_get_range', self.id, n)
 
+    @property
+    def shader(self) -> str:
+        return con.call('colormap_get_shader', self.id)
+
+    @shader.setter
+    def shader(self, shader: str):
+        return con.call('colormap_set_shader', self.id, shader)
+
+    @property
+    def center(self) -> str:
+        return con.call('colormap_get_center', self.id)
+
+    @center.setter
+    def center(self, center: str):
+        return con.call('colormap_set_center', self.id, center)
+
+    @property
+    def radius(self) -> str:
+        return con.call('colormap_get_radius', self.id)
+
+    @radius.setter
+    def radius(self, radius: str):
+        return con.call('colormap_set_radius', self.id, radius)
 
 class Image(_Ided):
 
