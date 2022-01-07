@@ -14,7 +14,10 @@ def on_tick():
         if not seq: continue
         date = datere.match(filename)
         if not date: continue
-        date = parse(date.group(1))
+        try:
+            date = parse(date.group(1))
+        except:
+            continue
         svg = f'''
             <svg width="1" height="1">
                 <text font-size="50" fill="#00FF00" display="absolute">{date}</text>
