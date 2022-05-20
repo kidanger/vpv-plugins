@@ -64,7 +64,6 @@ def on_tick():
             # TODO: get startx and endx from the previous/next image
             # and not the coords in the file
             startx = coords[max(0,idx-1)][1]
-            print(startx, idx, coords[max(0,idx-1)])
             midx = coords[idx][1]
             endx = coords[min(idx+1,len(coords)-1)][1]
             startx += (midx - startx) / 2
