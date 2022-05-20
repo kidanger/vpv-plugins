@@ -1,3 +1,4 @@
+import os
 import re
 import datetime
 from dateutil.parser import parse
@@ -6,13 +7,14 @@ from api import *
 
 active = False
 imgscache = []
-seqs_that_uses_coords = None
+seq_to_coords = None
+prevhash = 0
 
 parseisodate = lambda s: datetime.datetime.fromisoformat(s)
 parsesatdate = lambda s: datetime.datetime.strptime(s, '%Y%m%d')
 
 def on_tick():
-    global active, imgscache, seqs_that_uses_coords
+    global active, imgscache, seq_to_coords, prevhash
     if is_key_pressed('l'):
         active = True
     if not active:
@@ -23,8 +25,20 @@ def on_tick():
         return
     imgscache = imgs
 
-    if not seqs_that_uses_coords:
-        seqs_that_uses_coords = []
+    hash = 0
+    for w in get_windows():
+        img = w.current_filename
+        try:
+            mdate = os.stat(f'{img}.coords').st_mtime
+            hash ^= int(mdate)
+        except:
+            continue
+    if prevhash != hash:
+        seq_to_coords = None
+        prevhash = hash
+
+    if not seq_to_coords:
+        seq_to_coords = []
         for w in get_windows():
             seq = w.current_sequence
             img = w.current_filename
@@ -38,9 +52,9 @@ def on_tick():
             coords = map(lambda c: (parseisodate(c[0]), float(c[1])), coords)
             coords = sorted(coords, key=lambda c: c[0])
             coords = list(coords)
-            seqs_that_uses_coords.append((seq, coords))
+            seq_to_coords.append((seq, coords))
 
-    for seq, coords in seqs_that_uses_coords:
+    for seq, coords in seq_to_coords:
         code = '''
             <svg width="1" height="1">
         '''

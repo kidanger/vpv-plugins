@@ -17,7 +17,6 @@ local function read_views(s)
 end
 
 local function update_views()
-    if not VPV_VIEWS then return end
     local f = io.open(VPV_VIEWS, 'r')
     if not f then return end
     local lines = read_views(f)
