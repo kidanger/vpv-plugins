@@ -41,34 +41,45 @@ def on_tick():
             seqs_that_uses_coords.append((seq, coords))
 
     for seq, coords in seqs_that_uses_coords:
-        dates = [re.search(r'.*(\d{4}-?\d{2}-?\d{2}([tT]\d{6})?).*', img) for img in imgs]
-        dates = filter(lambda d: d, dates)
-        dates = map(lambda d: d.group(1), dates)
-        dates = map(lambda d: parse(d), dates)
-        try:
-            curdate = next(dates)
-        except StopIteration:
-            seq.put_script_svg('date-to-plot')
-            return
-
-        try:
-            idx = next(i for i, c in enumerate(coords) if c[0] > curdate)
-        except StopIteration:
-            idx = len(coords)-1
-
-        # TODO: get startx and endx from the previous/next image
-        # and not the coords in the file
-        startx = coords[max(0,idx-1)][1]
-        print(startx, idx, coords[max(0,idx-1)])
-        midx = coords[idx][1]
-        endx = coords[min(idx+1,len(coords)-1)][1]
-        startx += (midx - startx) / 2
-        endx -= (endx - midx) / 2
-
-        code = f'''
+        code = '''
             <svg width="1" height="1">
-                <rect width="{endx-startx}" height='1000' x='{startx}' y='0' fill='#000000' fill-opacity='0.25'></rect>
-            </svg>
         '''
-        seq.put_script_svg('date-to-plot', code)
+        found = False
+        for i, img in enumerate(imgs):
+            curdate = re.search(r'.*(\d{4}-?\d{2}-?\d{2}([tT]\d{6})?).*', img)
+            if not curdate:
+                continue
+            found = True
+            curdate = curdate.group(1)
+            try:
+                curdate = parse(curdate)
+            except:
+                continue
 
+            try:
+                idx = next(i for i, c in enumerate(coords) if c[0] > curdate)
+            except StopIteration:
+                idx = len(coords)-1
+
+            # TODO: get startx and endx from the previous/next image
+            # and not the coords in the file
+            startx = coords[max(0,idx-1)][1]
+            print(startx, idx, coords[max(0,idx-1)])
+            midx = coords[idx][1]
+            endx = coords[min(idx+1,len(coords)-1)][1]
+            startx += (midx - startx) / 2
+            endx -= (endx - midx) / 2
+            width = max(1, endx - startx)
+
+            color = ['#000000', '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'][i]
+            code += f'''
+                <rect width="{width}" height='10000' x='{startx}' y='0' fill='{color}' fill-opacity='0.25'></rect>
+            '''
+
+        if found:
+            code += '''
+                </svg>
+            '''
+            seq.put_script_svg('date-to-plot', code)
+        else:
+            seq.put_script_svg('date-to-plot')
