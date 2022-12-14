@@ -1,4 +1,4 @@
-from typing import NewType, List, Tuple
+from typing import List, Tuple
 
 Vec2i = Tuple[int, int]
 
@@ -268,6 +268,14 @@ class Colormap(_Ided):
     @radius.setter
     def radius(self, radius: str):
         return con.call('colormap_set_radius', self.id, radius)
+
+    @property
+    def bands(self) -> Tuple[int,int,int]:
+        return con.call('colormap_get_bands', self.id)
+
+    @bands.setter
+    def bands(self, bands: Tuple[int,int,int]):
+        return con.call('colormap_set_bands', self.id, bands)
 
 class Image(_Ided):
 

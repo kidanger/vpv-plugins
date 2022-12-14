@@ -293,6 +293,14 @@ local api = {
         local colormap = str2colormap(id)
         colormap.radius = radius
     end,
+    colormap_get_bands=function(id)
+        local colormap = str2colormap(id)
+        return colormap.bands
+    end,
+    colormap_set_bands=function(id, bands)
+        local colormap = str2colormap(id)
+        colormap.bands = bands
+    end,
 
     -- IMAGE
     image_get_size=function(id)
