@@ -3,7 +3,7 @@ from dateutil.parser import parse
 
 from api import get_windows
 
-datere = re.compile(r'.*(\d{4}-?\d{2}-?\d{2}([tT]\d{6})?).*')
+datere = re.compile(r'.*((19|20)\d\d-?[01]\d-?[0-3]\d([tT]\d{2}:?\d{2}:?\d{2})?).*')
 
 def on_tick():
     for w in get_windows():
