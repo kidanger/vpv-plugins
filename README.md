@@ -23,7 +23,7 @@ This plug-in is meant for time series analysis. It allows you to compute the ave
  - PERC95-RM30 : It adds a rolling mean of 30 days for displaying the time series. 
  - PERC95-BFAST : It fits the time series with two sinus functions with periods of 365 and 180 days and a linear function. 
  - PERC95-ThymeBoost : It fits the time series with two sinus functions with periods of 365 and 180 days and a piecewise linear function. Practical for detecting breakpoint changes in the time series. 
- - PERC90-[...] : The same modes are available but with filtering above the percentile 90 for more cloudly regions. 
+ - PERC90-[...] : The same modes are available but with filtering above the percentile 90 for more cloudy regions. 
 
 Click on `'m'` to pop up the time series and on `'y'` to change the mod iteratively. 
 
