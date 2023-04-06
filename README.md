@@ -35,6 +35,6 @@ Different vision modes are available for analyzing the time series :
 Click on `'m'` to pop up the time series and select the vision mode and on `'y'` to change the processing mode iteratively. 
 
 Example : 
-![ts](/images/ex-s2-timeseries.png)
+![ts](/images/ex-s2-timeseries2.png)
 
 In this example, the BEAST model from the RGB channels are displayed as well as the detected season (scp) and trend (tcp) change points. 
