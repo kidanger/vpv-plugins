@@ -3,8 +3,8 @@
 import matplotlib as mpl
 import matplotlib.colors as colors
 from matplotlib.offsetbox import AnchoredText
+from matplotlib.lines import Line2D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from scipy.signal import lombscargle
 import matplotlib.dates as mdates
 mpl.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -17,8 +17,79 @@ import numpy as np
 import pandas as pd
 from dateutil.parser import parse
 import api
-from datetime import timedelta
-from ThymeBoost import ThymeBoost as tb
+from datetime import timedelta, datetime
+
+try :
+    import Rbeast as rb 
+    from Rbeast.plotbeast import np_sqrt, isfield, isempty, getfield, get_tcp, get_scp
+
+    def get_Yts(x, hasSeason, hasData):
+        Yts = x.trend.Y
+        SD2 = x.trend.SD ** 2 + x.sig2[0]
+        if hasSeason:
+            Yts, SD2 = (Yts + x.season.Y, SD2 + x.season.SD ** 2)
+        SD    = np_sqrt(SD2)
+        YtsSD = np.stack([Yts - SD, Yts + SD])
+        if hasData:
+            Yerr = x.data - Yts
+        else:
+            Yerr = []
+        return ((Yts, YtsSD, Yerr))
+
+
+    def beast(signal, time, deltat=48, season='harmonic', hasOutlier=True, ocp_max=10):
+
+        #metadata
+        metadata      = lambda: None  
+        metadata.isRegular      = False   # data is irregularly-spaced
+        metadata.time           = rb.args( )
+        metadata.time.datestr   = [str(x) for x in signal.index.tolist()]
+        metadata.time.strfmt    = 'YYYY-mm-dd HH:MM:SS'   # times of individulal images/data points: the unit here is fractional year (e.g., 2004.232)
+        metadata.deltaTime      = deltat    # regular interval used to aggregate the irregular time series (1/12 = 1/12 year = 1 month)
+        metadata.period         = 1.0     # the period is 1.0 year, so freq= 1.0 /(1/12) = 12 data points per period
+        metadata.startime       = 0.0     # the start time of the time series
+        metadata.missingValue     = float('nan')
+        metadata.season = 'harmonic'
+        metadata.hasOutlierCmpnt  = hasOutlier
+        metadata.ocp_max = ocp_max
+
+        #prior
+        prior = lambda: None 
+        prior.outlierMaxKnotNum = ocp_max
+        prior.precPriorType    = 'uniform'
+        prior.seasonMaxOrder   = 5
+
+        #extra
+        extra = lambda:None
+        extra.printProgressBar     = False
+        extra.printOptions         = True
+
+
+        results = rb.beast123(np.expand_dims(signal.values, axis=[1,2]), metadata=metadata, prior=prior, extra=extra)
+        indexes = (signal.index - datetime(1970,1,1)).total_seconds()
+        a = (indexes[-1] - indexes[0]) / (results.time[-1] - results.time[0])
+        b = indexes[0]
+        time = [datetime.fromtimestamp(a * (x - results.time[0]) + b) for x in results.time]
+        return results, time, a, b
+
+
+    def wrapper_beast(signal, re_period, hasOutlier=True, ocp_max=10):
+
+        results, time, a, b = beast(signal, [x.to_pydatetime() for x in signal.index], deltat=re_period, season='harmonic', hasOutlier=hasOutlier, ocp_max=ocp_max)
+        hasSeason = isfield(results, 'season') and not  isempty(results.season)
+        hasOutlier = isfield(results, 'outlier') and not isempty(results.outlier)
+        hasData   = isfield(results, "data")   and  not isempty(getfield(results, 'data'))
+
+        Yts, YtsSD, _ = get_Yts(results, hasSeason, hasData)
+        t_cp, _, t_ncp, _, t_cpPr, _, _, _ = get_tcp(results, 'median')
+        s_cp, _, s_ncp, _, s_cpPr, _, _, _ = get_scp(results, 'median')
+        
+        return results, Yts, YtsSD, t_cp, t_ncp, t_cpPr, s_cp, s_ncp, s_cpPr, time, a, b
+
+    MOD = ['RAW', 'CLOUD-F', 'RM30', 'BEAST']
+except :
+    MOD = ['RAW', 'CLOUD-F', 'RM30']
+
 
 dmap = {
     'gray':'Greys',
@@ -32,9 +103,6 @@ seq_cmap_name = ['Greys', 'Purples', 'Blues', 'Greens', 'Oranges', 'Reds', \
                       'YlOrBr', 'YlOrRd', 'OrRd', 'PuRd', 'RdPu', 'BuPu', \
                       'GnBu', 'PuBu', 'YlGnBu', 'PuBuGn', 'BuGn', 'YlGn']
 
-#harmonic reg
-from scipy.optimize import curve_fit
-
 
 def func1(t, a, b, p, c):
     return a * np.sin(2 * np.pi * (1/365.25) *t + p) + b * t + c
@@ -44,49 +112,7 @@ def func2(t, a1, a2, b, p1, p2, c):
 
 list_func = [func1, func2]
 
-def harmonic_reg(df):
 
-    index = (df.index - df.index[0]).to_series().dt.total_seconds().div(60*60*24, fill_value=0).astype(int)
-    df = df.reset_index().dropna()
-
-    if df.shape[0] > 30 : 
-        mod = 1
-    else :
-        mod = 0
-
-    func = list_func[mod]
-
-    guess_c = df[0].values.mean()
-    guess_a = [1.] * (mod+1)
-    guess = guess_a  + [0.] + [0.] * (mod+1) + [guess_c]
-   
-    #fit
-    return (index, *curve_fit(func, index.values[df.index], df[0].fillna(df[0].mean()).replace([np.inf, -np.inf], df[0].mean()).values, p0=guess), func)
-
-def thymeboost_fitter(mean, re_period, std_re_period):
-
-    mean = mean.fillna(mean.mean()).replace([np.inf, -np.inf], mean.mean())
-
-    if std_re_period < 1:
-        y = mean 
-    else :
-        y = mean.resample('1D').interpolate('linear').resample(f'{re_period}D').mean()
-
-    boosted_model = tb.ThymeBoost(approximate_splits=True,
-                                verbose=0,
-                                cost_penalty=.01,
-                                regularization=1.25)
-
-    output = boosted_model.fit(y,
-                            trend_estimator='linear',
-                            seasonal_estimator='fourier',
-                            fourier_order = 2,
-                            seasonal_period=365//re_period,
-                            split_cost='mae',
-                            global_cost='maicc',
-                            fit_type='local')
-    
-    return output
 
 #vpv 
 def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
@@ -118,6 +144,26 @@ def date_parser(sdate):
             pass
     return fdate 
 
+def cloud_filtering(signal:pd.Series):
+
+    #compute alpha for cleaning the slope without cutting too much signal
+    prep = signal.mean() + 3 * signal.std()
+    alpha = (signal > prep).sum() / signal.shape[0]
+    alpha_ = 1 - alpha
+
+    slope = pd.Series(np.gradient(signal.values), signal.index, name='slope')
+    slope_safe = slope.copy()
+    slope_safe[ slope > slope.quantile(alpha_) ] = np.nan 
+    slope_safe[ slope < slope.quantile(alpha) ] = np.nan 
+    slope_p = (slope > slope_safe.mean() + slope_safe.std())
+    slope_m = (slope < slope_safe.mean() - slope_safe.std())
+    cond = slope_p.shift(1) + slope_m.shift(-1)
+    signal_clean = signal.copy()
+    ocp_max = signal_clean[ cond == 2 ].count()
+    signal_clean[ cond == 2 ] = np.nan
+
+    return signal_clean.interpolate('linear'), ocp_max
+
 def preprocessing(df, mod):
 
     mean  = df[0].copy()
@@ -125,46 +171,54 @@ def preprocessing(df, mod):
     mean_raw = df[0].copy()
     std_raw = df[1].copy()
     label = None
-    
-    
-    if 'PERC' in mod:
-        q = int(mod.split('PERC')[1].split('-')[0]) / 100
+    args = None
 
-        mean_raw[mean_raw > mean_raw.quantile(q)] = np.nan
-        std_raw[std_raw > std_raw.quantile(q)] = np.nan
+    if 'CLOUD-F' in mod:
 
-        mean = mean_raw.interpolate('linear')
-        std = std_raw.interpolate('linear')
+        mean_raw, _ = cloud_filtering(mean_raw)
+        std_raw, _ = cloud_filtering(std_raw)
+        mean = mean_raw.copy()
+        std = std_raw.copy()
 
     if 'RM' in mod:
+        mean_raw, _ = cloud_filtering(mean_raw)
+        std_raw, _ = cloud_filtering(std_raw)
         days = int(mod.split('RM')[1].split('-')[0])
-
         mean = mean_raw.interpolate('linear').rolling(f'{days}D').mean()
         std = std_raw.interpolate('linear').rolling(f'{days}D').mean()
 
-    if 'BFAST' in mod: 
-        mean_index, mean_popt, mean_pcov, mean_func = harmonic_reg(mean_raw)
-        perr = np.sqrt(np.diag(mean_pcov)).mean()
-        label = f'p-err : {perr :.2f}'
-        mean = pd.DataFrame(data = np.array([mean_func(t, *mean_popt) for t in mean_index]), index=mean_raw.index) 
+    if 'BEAST' in mod:
+        _, ocp_max = cloud_filtering(mean_raw)
+        index = (mean_raw.index - mean_raw.index[0]).to_series().dt.days
+        re_period = int((index - index.shift()).mean()) / 365.25 
+        results, mean, std, t_cp, t_ncp, t_cpPr, s_cp, s_ncp, s_cpPr, time, a, b = \
+            wrapper_beast(mean_raw, re_period, ocp_max=int(ocp_max))
+        args = results, t_cp, t_ncp, t_cpPr, s_cp, s_ncp, s_cpPr, time, a, b
 
-    if 'ThymeBoost' in mod:
-        index = (mean.index - mean.index[0]).to_series().dt.days
-        re_period = int((index - index.shift()).mean())
-        std_re_period = (index - index.shift()).std()
-        output = thymeboost_fitter(mean.copy(), re_period, std_re_period)
-        mean = output['yhat']
-        std = output['trend']
-        std_raw = output['yhat'] - output['yhat_lower']
+    # if 'BFAST' in mod: 
+    #     mean_index, mean_popt, mean_pcov, mean_func = harmonic_reg(mean_raw)
+    #     perr = np.sqrt(np.diag(mean_pcov)).mean()
+    #     label = f'p-err : {perr :.2f}'
+    #     mean = pd.DataFrame(data = np.array([mean_func(t, *mean_popt) for t in mean_index]), index=mean_raw.index) 
 
-    return mean_raw, std_raw, mean, std, label 
+    # if 'ThymeBoost' in mod:
+    #     index = (mean.index - mean.index[0]).to_series().dt.days
+    #     re_period = int((index - index.shift()).mean())
+    #     std_re_period = (index - index.shift()).std()
+    #     output = thymeboost_fitter(mean.copy(), re_period, std_re_period)
+    #     mean = output['yhat']
+    #     std = output['trend']
+    #     std_raw = output['yhat'] - output['yhat_lower']
 
-def plotting(ax, df, lims=None, cmap=None, norm=lambda x:x, label=None, mod=None, grid=True):
+
+    return mean_raw, std_raw, mean, std, label, args 
+
+def plotting(ax, df, lims=None, cmap=None, norm=lambda x:x, label=None, mod=None, grid=True, key=0):
 
     if mod is None:
         mod = 'RAW'
 
-    mean_raw, std_raw, mean, std, label_  = preprocessing(df, mod)
+    mean_raw, std_raw, mean, std, label_, args  = preprocessing(df, mod)
 
     if label is None:
         label = label_
@@ -175,81 +229,119 @@ def plotting(ax, df, lims=None, cmap=None, norm=lambda x:x, label=None, mod=None
         lw = 0.75
     else :
         lw = 1.
+
     #plot 
-    lines = ax.plot(mean.index, mean.values, lw=lw, color=cmap(0.5), label=label, zorder=3)
-    if 'BFAST' in mod:
-        scatter = ax.scatter(mean_raw.index, mean_raw.values, marker='+', s=8, \
-            color=cmap(0.5), linewidths=0.75, zorder=4, alpha=0.5)
-        fill = ax.fill_between(mean.index, mean_raw.values, mean[0].values, alpha=0.25, color=cmap(0.25), lw=0, zorder=1)
-    elif 'ThymeBoost' in mod:
-        scatter = ax.scatter(mean_raw.index, mean_raw.values, marker='+', s=8, \
-            color=cmap(0.5), linewidths=0.75, zorder=4, alpha=0.5)
-        lines += ax.plot(std.index, std.values, lw=0.75, color=cmap(0.4), label=label, zorder=2, linestyle=(5,(10,3)))
-        fill = ax.fill_between(mean.index, mean.values + std_raw.values, mean.values - std_raw.values , alpha=0.25, color=cmap(0.25), lw=0, zorder=1)
+    text = [] 
+    alines = []
+    legend = []
+    if 'BEAST' in mod:
+        results, t_cp, t_ncp, t_cpPr, s_cp, s_ncp, s_cpPr, time, a, b = args 
+        scatter = []
+
+        #lines
+        lines = ax.plot(time, mean , lw=lw, color=cmap(0.5), label=label, zorder=3)
+        lines += ax.plot(time, results.trend.Y, color=cmap(0.25), label='trend', zorder=2, lw=2, linestyle='dashed')
+        # lines += ax.plot(time, results.season.Y + results.trend.Y.mean(), color=cmap(0.65), label='season', zorder=0, lw=0.75)
+        fill = ax.fill_between(time, std[0,:], std[1,:] , alpha=0.25, color=cmap(0.25), lw=0, zorder=1)
+
+        ylim = list(ax.get_ylim())
+        if lims is not None and diff(lims) < diff(ylim):
+            ax.set_ylim(lims)
+
+        #lines
+        for i in range(t_ncp):
+            alines.append(ax.axvline(datetime.fromtimestamp((t_cp[i] - results.time[0]) * a + b), lw=1, color=cmap(0.5), linestyle='dashdot'))
+            text.append(ax.text(datetime.fromtimestamp((t_cp[i] - results.time[0]) * a + b), ylim[1]*(0.1 + 0.05 * (i+key)) , f' p:{t_cpPr[i]:.1f}', color=cmap(0.5), fontsize=6))
+
+        for i in range(s_ncp):
+            alines.append(ax.axvline(datetime.fromtimestamp((s_cp[i] - results.time[0]) * a + b), lw=1, color=cmap(0.5), linestyle='--'))
+            text.append(ax.text(datetime.fromtimestamp((s_cp[i] - results.time[0]) * a + b), ylim[1]*(0.9 - 0.05 * (i+key)), f' p:{s_cpPr[i]:.1f}', color=cmap(0.5), fontsize=6))
+
+        custom_lines = [Line2D([0], [0], color=cmap(.5), lw=1, linestyle='dashdot'),
+                Line2D([0], [0], color=cmap(.5), lw=1, linestyle='--')]
+        
+        legend = [ax.legend(custom_lines, ['tcp', 'scp'])]
+
     else :
+        lines = ax.plot(mean.index, mean.values, lw=lw, color=cmap(0.5), label=label, zorder=3)
         scatter = ax.scatter(mean.index, mean.values, marker='+', s=10, \
             color=cmap(0.5), linewidths=0.75, zorder=4)
         fill = ax.fill_between(mean.index, mean-std, mean+std, alpha=0.25, color=cmap(0.25), lw=0, zorder=1)
 
+        ylim = list(ax.get_ylim())
+        if lims is not None and diff(lims) < diff(ylim):
+            ax.set_ylim(lims)
 
-    ylim = list(ax.get_ylim())
-    if lims is not None and diff(lims) < diff(ylim):
-        ax.set_ylim(lims)
+    
 
     if grid:
         ax.grid(True, alpha=0.5, linestyle='--', lw=0.5)
 
     if label is not None:
         ax.legend(prop={'size': 8})
+    elif len(legend) > 0:
+        pass
     else:
         legend = ax.get_legend()
         if legend is not None:
             legend.remove()
+        legend = []
 
     locator = mdates.AutoDateLocator(minticks=1, maxticks=20)
     formatter = mdates.ConciseDateFormatter(locator)
     ax.xaxis.set_major_locator(locator)
     ax.xaxis.set_major_formatter(formatter)
 
-    return lines + [scatter, fill]
+    return lines + [scatter, fill] + text + alines + legend
 
 
 class Figure:
 
-    def __init__(self, seqs, selection=None, sharex=True, sharey=False):
+    def __init__(self, seqs, mode_vision='FOCUS', selection=None, sharex=True, sharey=False):
         
         self.formats = ['png', 'jpeg', 'tif', 'tiff']
-        
+
         #sequences
         self.seqs = {i: seq for i,seq in enumerate(seqs)}
-        self.complex = [False for key in self.seqs.keys()] 
+        self.complex = {key:False for key in self.seqs.keys()}
         self.selection = selection
+
+        #vision
+        self.mode_vision = mode_vision
+        if self.mode_vision == 'FOCUS':
+            seq_id = api.get_focused_window().current_sequence.id
+            self.old_key = int(seq_id.split(' ')[-1]) - 1
+            self.seqs = {self.old_key:self.seqs[self.old_key]}
+        elif self.mode_vision == 'ALL':
+            pass 
+        # elif self.mode_vision == 'FOLDER':
+        #     pass
 
         #shared by seq
         self.old_selection = None
 
         #unique by seq
-        self.old_frame = [1 for seq in self.seqs.values()]
-        self.colormap = [seq.colormap for seq in self.seqs.values()] 
-        self.files_path = [[seq.collection.get_filename(i) for i in range(seq.collection.length) \
-            if seq.collection.get_filename(i).split('.')[-1].lower() in self.formats] for seq in self.seqs.values()]
+        self.old_frame = {key:1 for key,seq in self.seqs.items()}
+        self.colormap = {key:seq.colormap for key,seq in self.seqs.items()}
+        self.files_path = {key:[seq.collection.get_filename(i) for i in range(seq.collection.length) \
+            if seq.collection.get_filename(i).split('.')[-1].lower() in self.formats] for key,seq in self.seqs.items()}
 
-        self.lim_frame = [len(self.files_path[key]) for key in self.seqs.keys()]
-        self.data = [self.get_data(self.selection, key) for key in self.seqs.keys()]
+        self.lim_frame = {key:len(self.files_path[key]) for key in self.seqs.keys()}
+        self.data = {key:self.get_data(self.selection, key) for key in self.seqs.keys()}
 
-        self.cmap = [lambda x:None for key in self.seqs.keys()] 
-        self.old_shader = ['Gray' for key in self.seqs.keys()] 
+        self.cmap = {key:lambda x:None for key in self.seqs.keys()}
+        self.old_shader = {key:'Gray' for key in self.seqs.keys()} 
         
-        self.lims = [None for key in self.seqs.keys()]  
-        self.line = [None for key in self.seqs.keys()]  
-        self.texts = [[] for key in self.seqs.keys()]  
-        self.plots = [[] for key in self.seqs.keys()] 
-        self.norm = [None for key in self.seqs.keys()] 
-        self.cax = [None for key in self.seqs.keys()] 
-        self.mod = [None for key in self.seqs.keys()]
+        self.lims = {key:None for key in self.seqs.keys()}  
+        self.line = {key:None for key in self.seqs.keys()}  
+        self.texts = {key:[] for key in self.seqs.keys()}  
+        self.plots = {key:[] for key in self.seqs.keys()} 
+        self.norm = {key:None for key in self.seqs.keys()} 
+        self.cax = {key:None for key in self.seqs.keys()} 
+        self.mod = {key:None for key in self.seqs.keys()} 
 
         #check if the len of the seq > 2 
-        index_len = np.where(np.array([len(seq) for seq in self.files_path]) < 2)[0]
+        index_len = np.where(np.array([len(seq) for seq in self.files_path.values()]) < 2)[0]
         for i in index_len:
             del self.seqs[i]
 
@@ -262,6 +354,7 @@ class Figure:
         self.ncols = 1
         self.figsize = (self.ncols * 8, self.nrows * 2.5)
         self.fig, self.ax = self.figure(self.nrows, self.ncols, self.figsize)
+        self.ax = {list(self.mod.keys())[i]:self.ax[i] for i in range(len(self.ax))}
         
 
     def safe_frame(self, frame, key):
@@ -279,6 +372,7 @@ class Figure:
         self.old_selection = selection
         tpc, blc = selection 
         a,b,c,d = min(tpc[1], blc[1]), max(tpc[1], blc[1]), min(blc[0],tpc[0]), max(blc[0],tpc[0])
+        print(a,b,c,d)
         window = windows.Window.from_slices(rows=(a,b), cols=(c,d))
         print('window: ',window)
         shape = rasterio.open(os.path.abspath(self.files_path[key][0])).read(window=window).shape[0]
@@ -400,6 +494,21 @@ class Figure:
             self.open(key)
 
         return self.fig
+    
+    def open_mod(self, mode):
+        if mode.lower() == 'focus':
+            seq_id = api.get_focused_window().current_sequence.id
+            key = int(seq_id.split(' ')[-1]) - 1
+            self.open(key)
+        
+        if mode.lower() == 'open':
+            self.open_all()
+
+        if mode.lower() == 'all':
+            #to doo
+            self.open_all()
+
+        return self.fig 
 
     def close(self):
         plt.close(self.fig)
@@ -418,12 +527,16 @@ class Figure:
 
         if len(self.plots[key])>0:
             for plot in self.plots[key]:
-                plot.remove()
+                if isinstance(plot, list):
+                    for p in plot:
+                        p.remove()
+                elif plot is not None:
+                    plot.remove()
 
         plots = []
         if len(self.data[key]) == 1:
             #1-variable
-            plot = plotting(self.ax[key], self.data[key][0], cmap=self.cmap[key][0], lims=self.lims[key], norm=self.norm[key], mod=mod)
+            plot = plotting(self.ax[key], self.data[key][0], cmap=self.cmap[key][0], lims=self.lims[key], norm=self.norm[key], mod=mod, key=key)
             plots.extend(plot)
 
         elif len(self.data[key]) <= 3:
@@ -435,20 +548,20 @@ class Figure:
 
             for i in range(len(self.data[key])):
                 plot = plotting(self.ax[key], self.data[key][i], lims=self.lims[key], \
-                    cmap=self.cmap[key][i], norm=self.norm[key], label=labels[i], mod=mod)
+                    cmap=self.cmap[key][i], norm=self.norm[key], label=labels[i], mod=mod, key=key)
                 plots.extend(plot)
 
         elif len(self.data[key]) == 4:
             #rgbi
             for i in range(len(self.data[key])):
                 plot = plotting(self.ax[key], self.data[key][i], lims=self.lims[key], \
-                                cmap=self.cmap[key][i], norm=self.norm[key], mod=mod)
+                                cmap=self.cmap[key][i], norm=self.norm[key], mod=mod, key=key)
                 plots.extend(plot)
         else :
             print('WIP')
             for i in range(len(self.data[key])):
                 plot = plotting(self.ax[key], self.data[key][i], lims=self.lims[key], \
-                                cmap=self.cmap[key][i], norm=self.norm[key], mod=mod)
+                                cmap=self.cmap[key][i], norm=self.norm[key], mod=mod, key=key)
                 plots.extend(plot)
 
         if draw:
@@ -475,15 +588,15 @@ class Figure:
             for t in self.texts[key]:
                 t.remove()
 
-        self.line[key] = self.ax[key].axvline(date, color='lime', alpha=0.45, lw=4, zorder=2)
+        self.line[key] = self.ax[key].axvline(date, color='black', alpha=0.35, lw=4, zorder=2)
         lim = self.ax[key].get_ylim()[1]
         if isinstance(date, int):
             delta = 0
         else : 
             delta = timedelta(days=3)
         
-        texts = [self.ax[key].text(date + delta, lim*0.85, sdate, color = 'k', fontsize=7,\
-             bbox=dict(facecolor='lime', edgecolor='lime', boxstyle='round', alpha=0.45), zorder=2)]
+        texts = [self.ax[key].text(date + delta, lim*0.85, sdate, color = 'white', fontsize=7,\
+             bbox=dict(facecolor='black', edgecolor=None, boxstyle='round', alpha=1), zorder=10)]
 
         for i in range(len(self.data[key])):
             try :
@@ -514,9 +627,12 @@ cfig = None
 start = None
 N = 0
 M = 1
-MOD = ['RAW', 'PERC95', 'PERC95-RM30', 'PERC95-BFAST', 'PERC95-ThymeBoost', 'PERC90', 'PERC90-RM30', 'PERC90-BFAST', 'PERC90-ThymeBoost']
+V = 0
+
+
+MOD_V = ['FOCUS', 'ALL']
 def on_tick():
-    global fig, cfig, start, N, M
+    global fig, cfig, start, N, M, V
 
     window = api.get_focused_window()
     if not window or not window.current_sequence:
@@ -529,24 +645,61 @@ def on_tick():
     if not view:
         return
     
-    if api.is_key_pressed('m', repeat=False) and api.get_selection() is not None:
-        if fig is None : 
-            old_selection = api.get_selection()
-            cfig = Figure(seqs, selection=old_selection)
-            fig = cfig.open_all()
-            print('open', fig)
-        else:
-            print('closed', fig)
-            fig = cfig.close()
+    #OPEN FIGURE and VISION MODE
+    if (api.get_selection() is not None) and api.is_key_pressed('m', repeat=False):
 
+        mod_v = MOD_V[ V % len(MOD_V)]
+        
+        if fig is not None:
+            cfig.close()
+            seq.put_script_svg('mode')
+
+        cfig = Figure(seqs, mode_vision=mod_v ,selection=api.get_selection())
+        fig = cfig.open_all()
+
+        svg = f''' 
+        <svg xmlns="http://www.w3.org/2000/svg">
+        <g>
+            <rect x="5" y="10"  width="{len(mod_v)*10}" height="15" fill="grey" fill-opacity='0.25' stroke="green"></rect>
+            <text x="10" y="10"  font-family="Verdana" font-size="15" fill="green">{mod_v}</text>
+        </g>
+        </svg>'''
+        seq.put_script_svg('mode', svg)
+        print('open', fig)
+        V += 1
+
+    #UPDATE FIGURE
     if cfig is not None:
 
+        seq_id = api.get_focused_window().current_sequence.id
+        key = int(seq_id.split(' ')[-1]) - 1
+
+        #UPDATE SELECTION IN FOCUS MODE
+        if (api.get_selection() is not None) and (api.get_selection() != cfig.old_selection) and cfig.mode_vision == 'FOCUS' and key != cfig.old_key:
+            cfig.seqs[cfig.old_key].put_script_svg('mode')
+            cfig.close()
+
+            cfig = Figure(seqs, mode_vision=cfig.mode_vision ,selection=api.get_selection())
+            fig = cfig.open_all()
+
+            svg = f''' 
+            <svg xmlns="http://www.w3.org/2000/svg">
+            <g>
+                <rect x="5" y="10"  width="{len(cfig.mode_vision)*10}" height="15" fill="grey" fill-opacity='0.25' stroke="green"></rect>
+                <text x="10" y="10"  font-family="Verdana" font-size="15" fill="green">{cfig.mode_vision}</text>
+            </g>
+            </svg>'''
+            cfig.seqs[key].put_script_svg('mode', svg)
+            print('open', fig)
+
+        #CURSOR UPDATE
         if len(players) == 1:
-            
-            if seqs[0].player.frame != cfig.old_frame[0]:
+            key = list(cfig.seqs.keys())[0]
+            if seqs[key].player.frame != cfig.old_frame[key]:
                 cfig.update_cursor_all(seqs[0].player.frame)
 
-            elif fig is not None and api.get_selection() is not None and api.get_selection() != cfig.old_selection:    
+            elif (fig is not None and api.get_selection() is not None) and \
+                (api.get_selection() != cfig.old_selection):    
                 cfig.update_plot_all()
 
         elif len(players) > 1:
@@ -559,6 +712,7 @@ def on_tick():
                     cfig.data[key] = cfig.get_data(api.get_selection(), key)
                     cfig.update_plot(key, draw=True)
 
+        #FIGURE STYLE UPDATE
         for key in cfig.seqs:
             if seqs[key].colormap.shader != cfig.old_shader[key]:
                     cfig.open(key, update=True)
@@ -571,12 +725,15 @@ def on_tick():
                     cfig.open(key, update=True)
                     N = 0
 
+        #PREPROCESSING MODE
         if api.is_key_pressed('y', repeat=False) and api.get_selection() is not None:
             mod = MOD[M%len(MOD)]
-            seq_id = api.get_focused_window().current_sequence.id
-            key = int(seq_id.split(' ')[-1]) - 1
-            cfig.update_rolling_mean(key, mod)
+            # seq_id = api.get_focused_window().current_sequence.id
+            # key = int(seq_id.split(' ')[-1]) - 1
+            for key in cfig.seqs:
+                cfig.update_rolling_mean(key, mod)
             M+=1
+  
 
     if fig is not None:
         if fig.stale:
