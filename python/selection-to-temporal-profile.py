@@ -18,6 +18,7 @@ import pandas as pd
 from dateutil.parser import parse
 import api
 from datetime import timedelta, datetime
+from joblib import Parallel, delayed
 
 try :
     import Rbeast as rb 
@@ -104,16 +105,6 @@ seq_cmap_name = ['Greys', 'Purples', 'Blues', 'Greens', 'Oranges', 'Reds', \
                       'GnBu', 'PuBu', 'YlGnBu', 'PuBuGn', 'BuGn', 'YlGn']
 
 
-def func1(t, a, b, p, c):
-    return a * np.sin(2 * np.pi * (1/365.25) *t + p) + b * t + c
-
-def func2(t, a1, a2, b, p1, p2, c):
-    return a1 * np.sin(2 * np.pi * (1/365.25)*t + p1) + a2 * np.sin(2 * np.pi * (2/365.25)*t + p2) + b * t + c
-
-list_func = [func1, func2]
-
-
-
 #vpv 
 def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
     new_cmap = colors.LinearSegmentedColormap.from_list(
@@ -164,61 +155,49 @@ def cloud_filtering(signal:pd.Series):
 
     return signal_clean.interpolate('linear'), ocp_max
 
+def wrapper_preprocessing(dfs, mod=''):
+    datap = []
+    for df in dfs:
+        datap.append( preprocessing(df, mod) )
+    return datap
+
 def preprocessing(df, mod):
 
     mean  = df[0].copy()
     std = df[1].copy()
-    mean_raw = df[0].copy()
-    std_raw = df[1].copy()
     label = None
     args = None
 
     if 'CLOUD-F' in mod:
-
-        mean_raw, _ = cloud_filtering(mean_raw)
-        std_raw, _ = cloud_filtering(std_raw)
-        mean = mean_raw.copy()
-        std = std_raw.copy()
+        mean, _ = cloud_filtering(mean)
+        std, _ = cloud_filtering(std)
 
     if 'RM' in mod:
-        mean_raw, _ = cloud_filtering(mean_raw)
-        std_raw, _ = cloud_filtering(std_raw)
+        mean_raw, _ = cloud_filtering(mean)
+        std_raw, _ = cloud_filtering(std)
         days = int(mod.split('RM')[1].split('-')[0])
         mean = mean_raw.interpolate('linear').rolling(f'{days}D').mean()
         std = std_raw.interpolate('linear').rolling(f'{days}D').mean()
 
     if 'BEAST' in mod:
-        _, ocp_max = cloud_filtering(mean_raw)
-        index = (mean_raw.index - mean_raw.index[0]).to_series().dt.days
+        _, ocp_max = cloud_filtering(mean)
+        index = (mean.index - mean.index[0]).to_series().dt.days
         re_period = int((index - index.shift()).mean()) / 365.25 
         results, mean, std, t_cp, t_ncp, t_cpPr, s_cp, s_ncp, s_cpPr, time, a, b = \
-            wrapper_beast(mean_raw, re_period, ocp_max=int(ocp_max))
+            wrapper_beast(mean, re_period, ocp_max=int(ocp_max))
         args = results, t_cp, t_ncp, t_cpPr, s_cp, s_ncp, s_cpPr, time, a, b
 
-    # if 'BFAST' in mod: 
-    #     mean_index, mean_popt, mean_pcov, mean_func = harmonic_reg(mean_raw)
-    #     perr = np.sqrt(np.diag(mean_pcov)).mean()
-    #     label = f'p-err : {perr :.2f}'
-    #     mean = pd.DataFrame(data = np.array([mean_func(t, *mean_popt) for t in mean_index]), index=mean_raw.index) 
+    return  {'mean':mean, 'std':std, 'label':label, 'args':args}
 
-    # if 'ThymeBoost' in mod:
-    #     index = (mean.index - mean.index[0]).to_series().dt.days
-    #     re_period = int((index - index.shift()).mean())
-    #     std_re_period = (index - index.shift()).std()
-    #     output = thymeboost_fitter(mean.copy(), re_period, std_re_period)
-    #     mean = output['yhat']
-    #     std = output['trend']
-    #     std_raw = output['yhat'] - output['yhat_lower']
-
-
-    return mean_raw, std_raw, mean, std, label, args 
-
-def plotting(ax, df, lims=None, cmap=None, norm=lambda x:x, label=None, mod=None, grid=True, key=0):
+def plotting(ax, datap, lims=None, cmap=None, norm=lambda x:x, label=None, mod=None, grid=True, key=0):
 
     if mod is None:
         mod = 'RAW'
 
-    mean_raw, std_raw, mean, std, label_, args  = preprocessing(df, mod)
+    mean = datap['mean']
+    std = datap['std']
+    label_ = datap['label']
+    args = datap['args']
 
     if label is None:
         label = label_
@@ -314,8 +293,6 @@ class Figure:
             self.seqs = {self.old_key:self.seqs[self.old_key]}
         elif self.mode_vision == 'ALL':
             pass 
-        # elif self.mode_vision == 'FOLDER':
-        #     pass
 
         #shared by seq
         self.old_selection = None
@@ -327,7 +304,9 @@ class Figure:
             if seq.collection.get_filename(i).split('.')[-1].lower() in self.formats] for key,seq in self.seqs.items()}
 
         self.lim_frame = {key:len(self.files_path[key]) for key in self.seqs.keys()}
+        
         self.data = {key:self.get_data(self.selection, key) for key in self.seqs.keys()}
+        self.datap = {key:wrapper_preprocessing(self.data[key]) for key in self.seqs.keys()}
 
         self.cmap = {key:lambda x:None for key in self.seqs.keys()}
         self.old_shader = {key:'Gray' for key in self.seqs.keys()} 
@@ -367,7 +346,6 @@ class Figure:
         else:
             return fig, ax
 
-
     def get_data(self, selection, key): 
         self.old_selection = selection
         tpc, blc = selection 
@@ -383,6 +361,7 @@ class Figure:
         list_bands = list(np.array(list_bands) + 1)
         rasters = np.array([rasterio.open(os.path.abspath(file)).read(list_bands, window=window) for file in files_path])
         n = rasters.shape[0]
+
         try :
             date = pd.to_datetime([date_parser(os.path.basename(file)) for file in files_path])
         except :
@@ -477,7 +456,10 @@ class Figure:
         self.cax[key].get_yaxis().set_visible(False)
         self.cax[key].set_facecolor('black')
 
-        at = AnchoredText(self.seqs[key].id, loc='center left',
+
+        folder = os.path.basename(os.path.dirname(self.files_path[key][0]))
+        txt = " - ".join([cfig.seqs[key].id, folder])
+        at = AnchoredText(txt , loc='center left',
                         prop=dict(backgroundcolor='black',
                                     size=7, color='white'))
         self.cax[key].add_artist(at)
@@ -494,32 +476,27 @@ class Figure:
             self.open(key)
 
         return self.fig
-    
-    def open_mod(self, mode):
-        if mode.lower() == 'focus':
-            seq_id = api.get_focused_window().current_sequence.id
-            key = int(seq_id.split(' ')[-1]) - 1
-            self.open(key)
-        
-        if mode.lower() == 'open':
-            self.open_all()
 
-        if mode.lower() == 'all':
-            #to doo
-            self.open_all()
-
-        return self.fig 
 
     def close(self):
         plt.close(self.fig)
         return None 
 
     def update_plot_all(self):
+
+        self.update_data()
         for key in self.seqs.keys():
-            self.data[key] = self.get_data(api.get_selection(), key)
             self.update_plot(key)
 
         plt.draw()
+
+    def update_data(self):
+        self.data = {key:self.get_data(self.selection, key) for key in self.seqs.keys()}
+        key = list(self.seqs.keys())[0]
+        self.update_preprocessing(self.mod[key])
+
+    def update_preprocessing(self, mod):
+        self.datap = {key:wrapper_preprocessing(self.data[key], mod) for key in self.seqs.keys()}
 
     def update_plot(self, key, draw=False): 
         
@@ -536,7 +513,7 @@ class Figure:
         plots = []
         if len(self.data[key]) == 1:
             #1-variable
-            plot = plotting(self.ax[key], self.data[key][0], cmap=self.cmap[key][0], lims=self.lims[key], norm=self.norm[key], mod=mod, key=key)
+            plot = plotting(self.ax[key], self.datap[key][0], cmap=self.cmap[key][0], lims=self.lims[key], norm=self.norm[key], mod=mod, key=key)
             plots.extend(plot)
 
         elif len(self.data[key]) <= 3:
@@ -547,20 +524,20 @@ class Figure:
                 labels = [None]*3
 
             for i in range(len(self.data[key])):
-                plot = plotting(self.ax[key], self.data[key][i], lims=self.lims[key], \
+                plot = plotting(self.ax[key], self.datap[key][i], lims=self.lims[key], \
                     cmap=self.cmap[key][i], norm=self.norm[key], label=labels[i], mod=mod, key=key)
                 plots.extend(plot)
 
         elif len(self.data[key]) == 4:
             #rgbi
             for i in range(len(self.data[key])):
-                plot = plotting(self.ax[key], self.data[key][i], lims=self.lims[key], \
+                plot = plotting(self.ax[key], self.datap[key][i], lims=self.lims[key], \
                                 cmap=self.cmap[key][i], norm=self.norm[key], mod=mod, key=key)
                 plots.extend(plot)
         else :
             print('WIP')
             for i in range(len(self.data[key])):
-                plot = plotting(self.ax[key], self.data[key][i], lims=self.lims[key], \
+                plot = plotting(self.ax[key], self.datap[key][i], lims=self.lims[key], \
                                 cmap=self.cmap[key][i], norm=self.norm[key], mod=mod, key=key)
                 plots.extend(plot)
 
@@ -574,7 +551,6 @@ class Figure:
     def update_cursor_all(self, frame):
         for key in self.seqs.keys():
             self.update_cursor(frame, key)
-
         plt.draw()
 
     def update_cursor(self, frame, key, draw=False): 
@@ -612,9 +588,9 @@ class Figure:
     def update_rolling_mean(self, key, mod='RAW'):
         self.mod[key] = mod
         self.update_plot(key)
-        ####
 
-        txt = " ".join([cfig.seqs[key].id,mod])
+        folder = os.path.basename(os.path.dirname(self.files_path[key][0]))
+        txt = " - ".join([cfig.seqs[key].id, folder, mod])
         at = AnchoredText(txt, loc='center left',
                 prop=dict(backgroundcolor='black',
                             size=7, color='white'))
@@ -728,8 +704,7 @@ def on_tick():
         #PREPROCESSING MODE
         if api.is_key_pressed('y', repeat=False) and api.get_selection() is not None:
             mod = MOD[M%len(MOD)]
-            # seq_id = api.get_focused_window().current_sequence.id
-            # key = int(seq_id.split(' ')[-1]) - 1
+            cfig.update_preprocessing(mod)
             for key in cfig.seqs:
                 cfig.update_rolling_mean(key, mod)
             M+=1
