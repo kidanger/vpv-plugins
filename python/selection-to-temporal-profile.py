@@ -161,6 +161,19 @@ def wrapper_preprocessing(dfs, mod=''):
         datap.append( preprocessing(df, mod) )
     return datap
 
+def is_empty(self):
+    """Return True if there is no visible artist in the figure"""
+
+    children = self.get_children()
+    if len(children) < 1:
+        return True
+    
+    for child in self.get_children():
+        if child.get_visible():
+            return False
+
+    return True
+
 def preprocessing(df, mod):
 
     mean  = df[0].copy()
@@ -232,11 +245,11 @@ def plotting(ax, datap, lims=None, cmap=None, norm=lambda x:x, \
         #lines
         for i in range(t_ncp):
             alines.append(ax.axvline(datetime.fromtimestamp((t_cp[i] - results.time[0]) * a + b), lw=1, color=cmap(0.5), linestyle='dashdot'))
-            text.append(ax.text(datetime.fromtimestamp((t_cp[i] - results.time[0]) * a + b), ylim[1]*(0.1 + 0.05 * (i+key)) , f' p:{t_cpPr[i]:.1f}', color=cmap(0.5), fontsize=6))
+            text.append(ax.text(datetime.fromtimestamp((t_cp[i] - results.time[0]) * a + b), min(ylim[1]*(0.1 + 0.05 * (i+key)), ylim[1]*0.9) , f' p:{t_cpPr[i]:.1f}', color=cmap(0.5), fontsize=6))
 
         for i in range(s_ncp):
             alines.append(ax.axvline(datetime.fromtimestamp((s_cp[i] - results.time[0]) * a + b), lw=1, color=cmap(0.5), linestyle='--'))
-            text.append(ax.text(datetime.fromtimestamp((s_cp[i] - results.time[0]) * a + b), ylim[1]*(0.9 - 0.05 * (i+key)), f' p:{s_cpPr[i]:.1f}', color=cmap(0.5), fontsize=6))
+            text.append(ax.text(datetime.fromtimestamp((s_cp[i] - results.time[0]) * a + b), max(ylim[1]*(0.9 - 0.05 * (i+key)), ylim[1]*0.1), f' p:{s_cpPr[i]:.1f}', color=cmap(0.5), fontsize=6))
 
         custom_lines = [Line2D([0], [0], color=cmap(.5), lw=1, linestyle='dashdot'),
                 Line2D([0], [0], color=cmap(.5), lw=1, linestyle='--')]
@@ -625,6 +638,7 @@ def on_tick():
     if not view:
         return
     
+
     #OPEN FIGURE and VISION MODE
     if (api.get_selection() is not None) and api.is_key_pressed('m', repeat=False):
 
@@ -634,14 +648,15 @@ def on_tick():
             cfig.close()
             seq.put_script_svg('mode')
 
+
         cfig = Figure(seqs, mode_vision=mod_v ,selection=api.get_selection())
         fig = cfig.open_all()
 
         svg = f''' 
         <svg xmlns="http://www.w3.org/2000/svg">
         <g>
-            <rect x="5" y="10"  width="{len(mod_v)*10}" height="15" fill="grey" fill-opacity='0.25' stroke="green"></rect>
-            <text x="10" y="10"  font-family="Verdana" font-size="15" fill="green">{mod_v}</text>
+            <rect x="5" y="50"  width="{len(mod_v)*10}" height="15" fill="grey" fill-opacity='0.25' stroke="green" display="absolute"></rect>
+            <text x="10" y="50"  font-family="Verdana" font-size="15" fill="green" display="absolute">{mod_v}</text>
         </g>
         </svg>'''
         seq.put_script_svg('mode', svg)
@@ -665,8 +680,8 @@ def on_tick():
             svg = f''' 
             <svg xmlns="http://www.w3.org/2000/svg">
             <g>
-                <rect x="5" y="10"  width="{len(cfig.mode_vision)*10}" height="15" fill="grey" fill-opacity='0.25' stroke="green"></rect>
-                <text x="10" y="10"  font-family="Verdana" font-size="15" fill="green">{cfig.mode_vision}</text>
+                <rect x="5" y="50" width="{len(cfig.mode_vision)*10}" height="15" fill="grey" fill-opacity='0.25' stroke="green" display="absolute"></rect>
+                <text x="10" y="50" font-family="Verdana" font-size="15" fill="green" display="absolute">{cfig.mode_vision}</text>
             </g>
             </svg>'''
             cfig.seqs[key].put_script_svg('mode', svg)
@@ -717,7 +732,6 @@ def on_tick():
                 cfig.update_rolling_mean(key, mod)
             M+=1
   
-
     if fig is not None:
         if fig.stale:
             fig.canvas.draw_idle()
