@@ -18,7 +18,6 @@ import pandas as pd
 from dateutil.parser import parse
 import api
 from datetime import timedelta, datetime
-from joblib import Parallel, delayed
 
 try :
     import Rbeast as rb 
@@ -135,11 +134,12 @@ def date_parser(sdate):
             pass
     return fdate 
 
-def cloud_filtering(signal:pd.Series):
+def cloud_filtering(signal:pd.Series, signal_std:pd.Series):
 
     #compute alpha for cleaning the slope without cutting too much signal
-    prep = signal.mean() + 3 * signal.std()
-    alpha = (signal > prep).sum() / signal.shape[0]
+    prep1 = signal.mean() + 3 * signal.std()
+    prep2 = signal_std.mean() + 3 * signal_std.std()
+    alpha = ((signal > prep1) + (signal_std > prep2)).sum() / signal.shape[0]
     alpha_ = 1 - alpha
 
     slope = pd.Series(np.gradient(signal.values), signal.index, name='slope')
@@ -169,27 +169,29 @@ def preprocessing(df, mod):
     args = None
 
     if 'CLOUD-F' in mod:
-        mean, _ = cloud_filtering(mean)
-        std, _ = cloud_filtering(std)
+        mean, _ = cloud_filtering(mean, std)
+        std, _ = cloud_filtering(std, std)
 
     if 'RM' in mod:
-        mean_raw, _ = cloud_filtering(mean)
-        std_raw, _ = cloud_filtering(std)
+        mean_raw, _ = cloud_filtering(mean, std)
+        std_raw, _ = cloud_filtering(std, std)
         days = int(mod.split('RM')[1].split('-')[0])
         mean = mean_raw.interpolate('linear').rolling(f'{days}D').mean()
         std = std_raw.interpolate('linear').rolling(f'{days}D').mean()
 
     if 'BEAST' in mod:
-        _, ocp_max = cloud_filtering(mean)
+        _, ocp_max = cloud_filtering(mean, std)
+        print('ocp_max = ', ocp_max)
         index = (mean.index - mean.index[0]).to_series().dt.days
         re_period = int((index - index.shift()).mean()) / 365.25 
         results, mean, std, t_cp, t_ncp, t_cpPr, s_cp, s_ncp, s_cpPr, time, a, b = \
-            wrapper_beast(mean, re_period, ocp_max=int(ocp_max))
+            wrapper_beast(mean, re_period, ocp_max=1.25 * int(ocp_max))
         args = results, t_cp, t_ncp, t_cpPr, s_cp, s_ncp, s_cpPr, time, a, b
 
     return  {'mean':mean, 'std':std, 'label':label, 'args':args}
 
-def plotting(ax, datap, lims=None, cmap=None, norm=lambda x:x, label=None, mod=None, grid=True, key=0):
+def plotting(ax, datap, lims=None, cmap=None, norm=lambda x:x, \
+             label=None, mod=None, grid=True, key=0, format_is_date=True):
 
     if mod is None:
         mod = 'RAW'
@@ -266,10 +268,11 @@ def plotting(ax, datap, lims=None, cmap=None, norm=lambda x:x, label=None, mod=N
             legend.remove()
         legend = []
 
-    locator = mdates.AutoDateLocator(minticks=1, maxticks=20)
-    formatter = mdates.ConciseDateFormatter(locator)
-    ax.xaxis.set_major_locator(locator)
-    ax.xaxis.set_major_formatter(formatter)
+    if format_is_date:
+        locator = mdates.AutoDateLocator(minticks=1, maxticks=20)
+        formatter = mdates.ConciseDateFormatter(locator)
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(formatter)
 
     return lines + [scatter, fill] + text + alines + legend
 
@@ -299,6 +302,7 @@ class Figure:
 
         #unique by seq
         self.old_frame = {key:1 for key,seq in self.seqs.items()}
+        self.format_is_date = {key:True for key,seq in self.seqs.items()}
         self.colormap = {key:seq.colormap for key,seq in self.seqs.items()}
         self.files_path = {key:[seq.collection.get_filename(i) for i in range(seq.collection.length) \
             if seq.collection.get_filename(i).split('.')[-1].lower() in self.formats] for key,seq in self.seqs.items()}
@@ -317,7 +321,7 @@ class Figure:
         self.plots = {key:[] for key in self.seqs.keys()} 
         self.norm = {key:None for key in self.seqs.keys()} 
         self.cax = {key:None for key in self.seqs.keys()} 
-        self.mod = {key:None for key in self.seqs.keys()} 
+        self.mod = {key:'' for key in self.seqs.keys()} 
 
         #check if the len of the seq > 2 
         index_len = np.where(np.array([len(seq) for seq in self.files_path.values()]) < 2)[0]
@@ -363,9 +367,10 @@ class Figure:
         n = rasters.shape[0]
 
         try :
-            date = pd.to_datetime([date_parser(os.path.basename(file)) for file in files_path])
+            date = pd.to_datetime([date_parser(file) for file in files_path])
         except :
             date = range(len(files_path))
+            self.format_is_date[key] = False
 
         if np.iscomplexobj(rasters):
             self.complex[key] = True
@@ -381,11 +386,11 @@ class Figure:
 
     def get_date(self, key, frame): 
         try :
-            date = date_parser(os.path.basename(self.files_path[key][self.safe_frame(frame, key)]))
+            date = date_parser(self.files_path[key][self.safe_frame(frame, key)])
             sdate = date.strftime('%Y/%m/%d')
         except :
             print('no date -> one unit between two frames')
-            date = self.files_path[key].index(os.path.basename(self.files_path[key][self.safe_frame(frame, key)]))
+            date = self.files_path[key].index(self.files_path[key][self.safe_frame(frame, key)])
             sdate = date
 
         return date, sdate
@@ -482,18 +487,17 @@ class Figure:
         plt.close(self.fig)
         return None 
 
-    def update_plot_all(self):
+    def update_plot_all(self, selection, mod):
 
-        self.update_data()
+        self.update_data(selection, mod)
         for key in self.seqs.keys():
             self.update_plot(key)
 
         plt.draw()
 
-    def update_data(self):
-        self.data = {key:self.get_data(self.selection, key) for key in self.seqs.keys()}
-        key = list(self.seqs.keys())[0]
-        self.update_preprocessing(self.mod[key])
+    def update_data(self, selection, mod):
+        self.data = {key:self.get_data(selection, key) for key in self.seqs.keys()}
+        self.update_preprocessing(mod)
 
     def update_preprocessing(self, mod):
         self.datap = {key:wrapper_preprocessing(self.data[key], mod) for key in self.seqs.keys()}
@@ -513,7 +517,7 @@ class Figure:
         plots = []
         if len(self.data[key]) == 1:
             #1-variable
-            plot = plotting(self.ax[key], self.datap[key][0], cmap=self.cmap[key][0], lims=self.lims[key], norm=self.norm[key], mod=mod, key=key)
+            plot = plotting(self.ax[key], self.datap[key][0], cmap=self.cmap[key][0], lims=self.lims[key], norm=self.norm[key], mod=mod, key=key, format_is_date=self.format_is_date[key])
             plots.extend(plot)
 
         elif len(self.data[key]) <= 3:
@@ -525,20 +529,20 @@ class Figure:
 
             for i in range(len(self.data[key])):
                 plot = plotting(self.ax[key], self.datap[key][i], lims=self.lims[key], \
-                    cmap=self.cmap[key][i], norm=self.norm[key], label=labels[i], mod=mod, key=key)
+                    cmap=self.cmap[key][i], norm=self.norm[key], label=labels[i], mod=mod, key=key, format_is_date=self.format_is_date[key])
                 plots.extend(plot)
 
         elif len(self.data[key]) == 4:
             #rgbi
             for i in range(len(self.data[key])):
                 plot = plotting(self.ax[key], self.datap[key][i], lims=self.lims[key], \
-                                cmap=self.cmap[key][i], norm=self.norm[key], mod=mod, key=key)
+                                cmap=self.cmap[key][i], norm=self.norm[key], mod=mod, key=key, format_is_date=self.format_is_date[key])
                 plots.extend(plot)
         else :
             print('WIP')
             for i in range(len(self.data[key])):
                 plot = plotting(self.ax[key], self.datap[key][i], lims=self.lims[key], \
-                                cmap=self.cmap[key][i], norm=self.norm[key], mod=mod, key=key)
+                                cmap=self.cmap[key][i], norm=self.norm[key], mod=mod, key=key, format_is_date=self.format_is_date[key])
                 plots.extend(plot)
 
         if draw:
@@ -604,11 +608,11 @@ start = None
 N = 0
 M = 1
 V = 0
-
+mod = 'RAW'
 
 MOD_V = ['FOCUS', 'ALL']
 def on_tick():
-    global fig, cfig, start, N, M, V
+    global fig, cfig, start, N, M, V, mod
 
     window = api.get_focused_window()
     if not window or not window.current_sequence:
@@ -668,15 +672,19 @@ def on_tick():
             cfig.seqs[key].put_script_svg('mode', svg)
             print('open', fig)
 
-        #CURSOR UPDATE
+        
         if len(players) == 1:
             key = list(cfig.seqs.keys())[0]
+
+            #CURSOR UPDATE
             if seqs[key].player.frame != cfig.old_frame[key]:
                 cfig.update_cursor_all(seqs[0].player.frame)
 
+            #PLOT UPDATE
             elif (fig is not None and api.get_selection() is not None) and \
-                (api.get_selection() != cfig.old_selection):    
-                cfig.update_plot_all()
+                (api.get_selection() != cfig.old_selection) and not api.is_mouse_clicked(0):    
+                cfig.update_plot_all(api.get_selection(), mod)
+                
 
         elif len(players) > 1:
             for key in cfig.seqs:
