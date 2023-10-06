@@ -2,6 +2,9 @@ import api
 import sys
 import traceback
 
+# allow loading plugin from the directory where vpv is launched
+sys.path.append(".")
+
 plugins = []
 
 def load(name):

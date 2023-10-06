@@ -3,7 +3,7 @@
 
 ```lua
 local path = os.getenv('HOME') .. '/.vpv'
-local plugins = assert(loadfile(path .. '/plugins.lua'))(path)
+plugins = assert(loadfile(path .. '/plugins.lua'))(path)
 plugins.load('log', 'core/log')
 plugins.load('shortkey', 'core/shortkey')
 
