@@ -9,7 +9,6 @@ plugins.load('shortkey', 'core/shortkey')
 
 plugins.load('python', 'python/python')
 plugins.python.load 'show-date'
-plugins.python.load 'selection-to-temporal-profile'
 
 plugins.shortkey.register('f1', load_user_config, 'reload user config')
 
@@ -21,6 +20,12 @@ on_window_tick = plugins.manager.on_window_tick
 ## Selection-to-temporal-profile
 
 This plug-in is meant for time series analysis. It allows you to compute the average pixel value inside the selection for all the images and display the time series. 
+
+Add the following to your `~/.vpvrc` to enable the plugin:
+
+```lua
+plugins.python.load 'selection-to-temporal-profile'
+```
 
 Different processing modes are available for analyzing the time series : 
  - RAW : no processing of the data
