@@ -28,6 +28,9 @@ def is_mouse_clicked(button: int) -> bool:
 def get_mouse_position() -> Vec2i:
     return con.call('get_mouse_position')
 
+def get_mouse_position_ui() -> Vec2i:
+    return con.call('get_mouse_position_ui')
+
 def get_selection() -> Tuple[Vec2i,Vec2i]:
     return con.call('get_selection')
 
@@ -134,6 +137,14 @@ class Sequence(_Ided):
 
     def put_script_svg(self, key: str, value: str="") -> bool:
         return con.call('sequence_put_script_svg', self.id, key, value)
+
+    def set_glob(self, glob: str):
+        return con.call('sequence_set_glob', self.id, glob)
+
+    @property
+    def current_filename(self) -> str:
+        return con.call('sequence_get_current_filename', self.id)
+
 
 def new_sequence() -> Sequence:
     return Sequence(con.call('new_sequence'))

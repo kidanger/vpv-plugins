@@ -59,6 +59,10 @@ local api = {
     get_mouse_position=function()
         return {gHoveredPixel.x, gHoveredPixel.y}
     end,
+    get_mouse_position_ui=function()
+        pos = getmouseposition()
+        return {pos.x, pos.y}
+    end,
     get_selection=function()
         if not selection_is_shown() then
             return nil
@@ -155,6 +159,15 @@ local api = {
     sequence_put_script_svg=function(id, key, code)
         local seq = str2seq(id)
         return seq:put_script_svg(key, code)
+    end,
+    sequence_set_glob=function(id, glob)
+        local seq = str2seq(id)
+        return seq:set_glob(glob)
+    end,
+    sequence_get_current_filename=function(id)
+        local seq = str2seq(id)
+        local filename = seq.collection:get_filename(seq.player.frame - 1)
+        return filename
     end,
 
     -- VIEW
