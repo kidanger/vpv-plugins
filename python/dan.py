@@ -1,17 +1,22 @@
 from __future__ import annotations
 
-import time
-from functools import partial
-import os
-import json
 import concurrent.futures
 import glob
+import json
+import os
 import sys
+import time
+from dataclasses import dataclass
+from difflib import ndiff
+from functools import partial
 from pathlib import Path
 from typing import Optional
-from dataclasses import dataclass
 
 import api
+
+FONT_SIZE = int(os.getenv("DAN_FONT_SIZE", "16"))
+PANEL_WIDTH = int(os.getenv("DAN_PANEL_WIDTH", "370"))
+PREDICTION_RATIO = float(os.getenv("DAN_PREDICTION_RATIO", "1.0"))
 
 
 @dataclass(frozen=True)
@@ -38,7 +43,7 @@ class Object:
     @property
     def rect(self) -> tuple[int, int, int, int]:
         """x, y, width, height"""
-        f = 1.5  # manually fitted, TODO: understand where does this come from
+        f = PREDICTION_RATIO
         minx = int(f * min(p[0] for p in self.polygon))
         miny = int(f * min(p[1] for p in self.polygon))
         maxx = int(f * max(p[0] for p in self.polygon))
@@ -69,7 +74,8 @@ class State:
 
     def refresh_all(self):
         tnow = time.time()
-        if tnow - self.last_update < 0.05:
+        clicked = api.is_mouse_clicked(0)
+        if tnow - self.last_update < 0.05 and not clicked:
             return
         self.last_update = tnow
 
@@ -91,14 +97,16 @@ class State:
         image = possible_images[0]
 
         font_color = "#111111"
-        font_size = 16
-        width = 370
+        font_size = FONT_SIZE
+        global PANEL_WIDTH
+        width = PANEL_WIDTH
 
         def show_panel(
             win: api.Window,
             source: str,
-            values: dict[Token, str],
-            groundtruth: Optional[dict[Token, str]] = None,
+            groundtruth: dict[Token, str],
+            prev_hovered: Optional[Token],
+            prediction: Optional[Prediction] = None,
         ) -> Optional[Token]:
             seq = win.current_sequence
             mx, my = mouse_in_win(win)
@@ -117,21 +125,42 @@ class State:
             svg += f"""
             <text display="absolute" x="4" y="{y}" fill="{font_color}" font-size="{font_size}">set: {image.set_name}</text>
             """
+            y += int(font_size * 1.3)
+            if prediction:
+                good = sum(
+                    groundtruth[token] == prediction.values.get(token)
+                    for token in groundtruth.keys()
+                )
+                total = len(groundtruth)
+                svg += f"""
+                <text display="absolute" x="4" y="{y}" fill="{font_color}" font-size="{font_size}">score: {good}/{total}</text>
+                """
             y += int(font_size * 2)
 
             hovered = None
-            for token, value in sorted(
-                values.items(), key=lambda it: it[0].start + " " + it[0].end
+            for token in sorted(
+                groundtruth.keys(), key=lambda it: it.start + " " + it.end
             ):
                 color = font_color
-                if groundtruth and token in groundtruth:
-                    gtvalue = groundtruth[token]
-                    if gtvalue == value:
-                        color = "#004400"
-                    elif gtvalue.lower() == value.lower():
-                        color = "#664400"
+
+                gtvalue = groundtruth[token]
+                diff = []
+                if prediction:
+                    if token in prediction.values:
+                        value = prediction.values[token]
+                        if gtvalue == value:
+                            color = "#004400"
+                        else:
+                            if gtvalue.lower() == value.lower():
+                                color = "#664400"
+                            else:
+                                color = "#660000"
+                            diff = list(ndiff(value, gtvalue))
                     else:
-                        color = "#660000"
+                        value = "(missing)"
+                        color = "#FF0000"
+                else:
+                    value = gtvalue
 
                 starty = y
 
@@ -140,17 +169,50 @@ class State:
                 """
                 y += int(font_size * 1.3)
                 svg += f"""
-                    <text display="absolute" x="30" y="{y}" fill="{color}" font-size="{font_size}">{value}</text>
+                    <text display="absolute" x="20" y="{y}" fill="{color}" font-size="{font_size}">{value}</text>
                 """
+                for i, c in enumerate(diff):
+                    # c is something like "<marker> <char>"
+                    marker = c[0]
+                    if marker != " ":
+                        svg += f"""
+                            <text display="absolute" x="{20 + i*font_size/2}" y="{y+font_size*0.7}" fill="{color}" font-size="{font_size}">{marker}</text>
+                        """
+
+                if token == prev_hovered:
+                    svg += f"""
+                        <text display="absolute" x="2" y="{y}" fill="{font_color}" font-size="{font_size}">></text>
+                    """
                 y += int(font_size * 2)
 
                 if (
-                    my > starty + font_size / 2
-                    and my < y + font_size / 2
+                    my > starty + font_size
+                    and my < y + font_size
                     and mx > 0
                     and mx < width
                 ):
                     hovered = token
+
+            _, h = win.size
+            if my > h - font_size * 10:
+                h -= 20  # because of the potential window title bar...
+                bsize = font_size + 18
+                svg += f"""
+                    <text display="absolute" x="{6+bsize*0}" y="{h-font_size}" fill="{font_color}" font-size="{font_size}">P-</text>
+                    <text display="absolute" x="{6+bsize*1}" y="{h-font_size}" fill="{font_color}" font-size="{font_size}">P+</text>
+                    <text display="absolute" x="{6+bsize*2}" y="{h-font_size}" fill="{font_color}" font-size="{font_size}">F-</text>
+                    <text display="absolute" x="{6+bsize*3}" y="{h-font_size}" fill="{font_color}" font-size="{font_size}">F+</text>
+                """
+                global PANEL_WIDTH, FONT_SIZE
+                if clicked and my > h - font_size * 20:
+                    if mx > 6 + bsize * 0 and mx < 6 + bsize * 1:
+                        PANEL_WIDTH -= 10
+                    if mx > 6 + bsize * 1 and mx < 6 + bsize * 2:
+                        PANEL_WIDTH += 10
+                    if mx > 6 + bsize * 2 and mx < 6 + bsize * 3:
+                        FONT_SIZE -= 2
+                    if mx > 6 + bsize * 3 and mx < 6 + bsize * 4:
+                        FONT_SIZE += 2
 
             svg += """
             </svg>
@@ -159,7 +221,10 @@ class State:
             return hovered
 
         updated_hovered = show_panel(
-            gt_win, source="ground-truth", values=image.groundtruth
+            gt_win,
+            source="ground-truth",
+            groundtruth=image.groundtruth,
+            prev_hovered=self.current_hovered,
         )
 
         for win, (pred_name, predictions) in self.predictions_results.items():
@@ -174,8 +239,9 @@ class State:
             hovered = show_panel(
                 win,
                 source=pred_name,
-                values=prediction.values,
                 groundtruth=image.groundtruth,
+                prev_hovered=self.current_hovered,
+                prediction=prediction,
             )
             if hovered:
                 updated_hovered = hovered
@@ -189,8 +255,7 @@ class State:
                         continue
                     x, y, w, h = obj.rect
                     svg += f"""
-                    <rect x="{x}" y="{y}" width="{w}" height="{h}" stroke="red" />
-                    <rect x="{x}" y="{y}" width="{w}" height="{h}" fill="red" fill-opacity="{obj.confidence}" />
+                    <rect x="{x}" y="{y}" width="{w}" height="{h}" fill="red" fill-opacity="0.1" />
                     """
                 for obj in prediction.objects:
                     if obj.token != self.current_hovered:
@@ -377,6 +442,6 @@ def on_tick():
         return
     state = STATE
 
-    # TODO: if press shift + left/right, go to next image with prediction (skip unpredicted ones)
+    # TODO: on pressing shift + left/right, go to next image with prediction (skip unpredicted ones)
 
     state.refresh_all()
