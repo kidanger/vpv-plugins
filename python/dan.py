@@ -254,15 +254,32 @@ class State:
                     if obj.token != self.current_hovered:
                         continue
                     x, y, w, h = obj.rect
-                    svg += f"""
-                    <rect x="{x}" y="{y}" width="{w}" height="{h}" fill="red" fill-opacity="0.1" />
-                    """
+                    if obj.text in (self.current_hovered.start, self.current_hovered.end):
+                        svg += f"""
+                        <rect x="{x}" y="{y}" width="{w}" height="{h}" fill="green" fill-opacity="0.1" />
+                        """
+                    else:
+                        svg += f"""
+                        <rect x="{x}" y="{y}" width="{w}" height="{h}" fill="red" fill-opacity="0.1" />
+                        """
+                inity = None
+                initx = None
+                objs = []
                 for obj in prediction.objects:
                     if obj.token != self.current_hovered:
                         continue
-                    x, y, w, h = obj.rect
+                    if obj.text in (self.current_hovered.start, self.current_hovered.end):
+                        continue
+                    if not inity:
+                        inity = obj.rect[1]
+                    if not initx:
+                        initx = obj.rect[0]
+                    objs.append(obj.text)
+
+                if initx and inity:
                     svg += f"""
-                    <text x="{x-10}" y="{y-35}" fill="blue" font-size="40">{obj.text}</text>
+                    <rect x="{initx}" y="{inity - 40}" width="{len(objs)*22}" height="40" fill="white" fill-opacity="0.7" />
+                    <text x="{initx}" y="{inity - 40}" fill="blue" font-size="40">{''.join(objs)}</text>
                     """
                 svg += """
                 </svg>
