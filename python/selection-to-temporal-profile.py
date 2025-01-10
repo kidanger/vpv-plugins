@@ -121,8 +121,8 @@ def diff(l):
     return l[1] - l[0]
 
 def date_parser(sdate):
-    date6 = re.findall('.*(\d{4}-?\d{2}-?\d{2}([tT]\d{6})?).*', sdate)
-    date8 = re.findall('((19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01]))', sdate)
+    date6 = re.findall(r'.*(\d{4}-?\d{2}-?\d{2}([tT]\d{6})?).*', sdate)
+    date8 = re.findall(r'((19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01]))', sdate)
     date = []
     for l in [date6, date8]:
         if len(l)>0:
