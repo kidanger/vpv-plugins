@@ -673,9 +673,11 @@ class Figure:
             for plot in self.plots[key]:
                 if isinstance(plot, list):
                     for p in plot:
-                        p.remove()
+                        if getattr(p, "_remove_method", None):
+                            p.remove()
                 elif plot is not None:
-                    plot.remove()
+                    if getattr(plot, "_remove_method", None):
+                        plot.remove()
 
         plots = []
         if len(self.data[key]) == 1:
@@ -758,11 +760,13 @@ class Figure:
         self.old_frame[key] = frame
         date, sdate = self.get_date(key, frame)
         if self.line[key] is not None:
-            self.line[key].remove()
+            if getattr(self.line[key], "_remove_method", None):
+                self.line[key].remove()
 
         if self.texts[key] is not None:
             for t in self.texts[key]:
-                t.remove()
+                if getattr(t, "_remove_method", None):
+                    t.remove()
 
         self.line[key] = self.ax[key].axvline(
             date, color="black", alpha=0.35, lw=4, zorder=2
