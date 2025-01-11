@@ -5,7 +5,6 @@ import time
 
 import api
 
-
 mpl = api.LazyLoader("matplotlib")
 plt = api.LazyLoader("matplotlib.pyplot")
 pd = api.LazyLoader("pandas")
@@ -508,12 +507,15 @@ class Figure:
 
     def get_dataframe(self, files_path, window, list_bands, key):
         list_bands = list(np.array(list_bands) + 1)
-        rasters = np.array(
-            [
-                rasterio.open(os.path.abspath(file)).read(list_bands, window=window)
-                for file in files_path
-            ]
-        )
+
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor(20) as pool:
+            read = lambda file: rasterio.open(os.path.abspath(file)).read(
+                list_bands, window=window
+            )
+            rasters = list(pool.map(read, files_path))
+        rasters = np.array(rasters)
         n = rasters.shape[0]
 
         try:
