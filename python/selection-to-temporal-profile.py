@@ -1,23 +1,16 @@
-import matplotlib as mpl
-import matplotlib.colors as colors
-import matplotlib.dates as mdates
-from matplotlib.lines import Line2D
-from matplotlib.offsetbox import AnchoredText
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-mpl.use("Qt5Agg")
+import datetime
 import os
 import re
 import time
-from datetime import datetime, timedelta
 
 import api
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import rasterio
-from dateutil.parser import parse
-from rasterio import windows
+
+
+mpl = api.LazyLoader("matplotlib")
+plt = api.LazyLoader("matplotlib.pyplot")
+pd = api.LazyLoader("pandas")
+np = api.LazyLoader("numpy")
+rasterio = api.LazyLoader("rasterio")
 
 try:
     import Rbeast as rb
@@ -68,11 +61,12 @@ try:
             prior=prior,
             extra=extra,
         )
-        indexes = (signal.index - datetime(1970, 1, 1)).total_seconds()
+        indexes = (signal.index - datetime.datetime(1970, 1, 1)).total_seconds()
         a = (indexes[-1] - indexes[0]) / (results.time[-1] - results.time[0])
         b = indexes[0]
         time = [
-            datetime.fromtimestamp(a * (x - results.time[0]) + b) for x in results.time
+            datetime.datetime.fromtimestamp(a * (x - results.time[0]) + b)
+            for x in results.time
         ]
         return results, time, a, b
 
@@ -132,7 +126,7 @@ seq_cmap_name = [
 
 # vpv
 def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
-    new_cmap = colors.LinearSegmentedColormap.from_list(
+    new_cmap = mpl.colors.LinearSegmentedColormap.from_list(
         "trunc({n},{a:.2f},{b:.2f})".format(n=cmap.name, a=minval, b=maxval),
         cmap(np.linspace(minval, maxval, n)),
     )
@@ -153,6 +147,8 @@ def diff(l):
 
 
 def date_parser(sdate):
+    import dateutil.parser
+
     date6 = re.findall(r".*(\d{4}-?\d{2}-?\d{2}([tT]\d{6})?).*", sdate)
     date8 = re.findall(r"((19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01]))", sdate)
     date = []
@@ -161,7 +157,7 @@ def date_parser(sdate):
             date.extend(l[0])
     for d in sorted(date, key=len):
         try:
-            fdate = parse(d)
+            fdate = dateutil.parser.parse(d)
         except:
             pass
     return fdate
@@ -301,7 +297,9 @@ def plotting(
         for i in range(t_ncp):
             alines.append(
                 ax.axvline(
-                    datetime.fromtimestamp((t_cp[i] - results.time[0]) * a + b),
+                    datetime.datetime.fromtimestamp(
+                        (t_cp[i] - results.time[0]) * a + b
+                    ),
                     lw=1,
                     color=cmap(0.5),
                     linestyle="dashdot",
@@ -309,7 +307,9 @@ def plotting(
             )
             text.append(
                 ax.text(
-                    datetime.fromtimestamp((t_cp[i] - results.time[0]) * a + b),
+                    datetime.datetime.fromtimestamp(
+                        (t_cp[i] - results.time[0]) * a + b
+                    ),
                     min(ylim[1] * (0.1 + 0.05 * (i + key)), ylim[1] * 0.9),
                     f" p:{t_cpPr[i]:.1f}",
                     color=cmap(0.5),
@@ -320,7 +320,9 @@ def plotting(
         for i in range(s_ncp):
             alines.append(
                 ax.axvline(
-                    datetime.fromtimestamp((s_cp[i] - results.time[0]) * a + b),
+                    datetime.datetime.fromtimestamp(
+                        (s_cp[i] - results.time[0]) * a + b
+                    ),
                     lw=1,
                     color=cmap(0.5),
                     linestyle="--",
@@ -328,7 +330,9 @@ def plotting(
             )
             text.append(
                 ax.text(
-                    datetime.fromtimestamp((s_cp[i] - results.time[0]) * a + b),
+                    datetime.datetime.fromtimestamp(
+                        (s_cp[i] - results.time[0]) * a + b
+                    ),
                     max(ylim[1] * (0.9 - 0.05 * (i + key)), ylim[1] * 0.1),
                     f" p:{s_cpPr[i]:.1f}",
                     color=cmap(0.5),
@@ -337,8 +341,8 @@ def plotting(
             )
 
         custom_lines = [
-            Line2D([0], [0], color=cmap(0.5), lw=1, linestyle="dashdot"),
-            Line2D([0], [0], color=cmap(0.5), lw=1, linestyle="--"),
+            mpl.lines.Line2D([0], [0], color=cmap(0.5), lw=1, linestyle="dashdot"),
+            mpl.lines.Line2D([0], [0], color=cmap(0.5), lw=1, linestyle="--"),
         ]
 
         legend = [ax.legend(custom_lines, ["tcp", "scp"])]
@@ -384,8 +388,8 @@ def plotting(
         legend = []
 
     if format_is_date:
-        locator = mdates.AutoDateLocator(minticks=1, maxticks=20)
-        formatter = mdates.ConciseDateFormatter(locator)
+        locator = mpl.dates.AutoDateLocator(minticks=1, maxticks=20)
+        formatter = mpl.dates.ConciseDateFormatter(locator)
         ax.xaxis.set_major_locator(locator)
         ax.xaxis.set_major_formatter(formatter)
 
@@ -488,7 +492,7 @@ class Figure:
             max(blc[0], tpc[0]),
         )
         print(a, b, c, d)
-        window = windows.Window.from_slices(rows=(a, b), cols=(c, d))
+        window = rasterio.windows.Window.from_slices(rows=(a, b), cols=(c, d))
         print("window: ", window)
         shape = (
             rasterio.open(os.path.abspath(self.files_path[key][0]))
@@ -610,7 +614,9 @@ class Figure:
         self.update_cursor(self.seqs[key].player.frame, key)
 
         # Ax Title
-        divider = make_axes_locatable(self.ax[key])
+        import mpl_toolkits.axes_grid1
+
+        divider = mpl_toolkits.axes_grid1.make_axes_locatable(self.ax[key])
         self.cax[key] = divider.append_axes("top", size="12%", pad=0)
         self.cax[key].get_xaxis().set_visible(False)
         self.cax[key].get_yaxis().set_visible(False)
@@ -618,7 +624,7 @@ class Figure:
 
         folder = os.path.basename(os.path.dirname(self.files_path[key][0]))
         txt = " - ".join([cfig.seqs[key].id, folder])
-        at = AnchoredText(
+        at = mpl.offsetbox.AnchoredText(
             txt,
             loc="center left",
             prop=dict(backgroundcolor="black", size=7, color="white"),
@@ -763,7 +769,7 @@ class Figure:
         if isinstance(date, int):
             delta = 0
         else:
-            delta = timedelta(days=3)
+            delta = datetime.timedelta(days=3)
 
         texts = [
             self.ax[key].text(
@@ -811,7 +817,7 @@ class Figure:
 
         folder = os.path.basename(os.path.dirname(self.files_path[key][0]))
         txt = " - ".join([cfig.seqs[key].id, folder, mod])
-        at = AnchoredText(
+        at = mpl.offsetbox.AnchoredText(
             txt,
             loc="center left",
             prop=dict(backgroundcolor="black", size=7, color="white"),
@@ -847,6 +853,7 @@ def on_tick():
 
     # OPEN FIGURE and VISION MODE
     if (api.get_selection() is not None) and api.is_key_pressed("m", repeat=False):
+        mpl.use("Qt5Agg")
         mod_v = MOD_V[V % len(MOD_V)]
 
         if fig is not None:
