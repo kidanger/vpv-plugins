@@ -4,7 +4,7 @@ import re
 from api import get_windows, is_key_pressed
 from dateutil.parser import parse
 
-datere = re.compile(r".*((19|20)\d\d-?[01]\d-?[0-3]\d([tT]\d{2}:?\d{2}:?\d{2})?).*")
+datere = re.compile(r"((19|20)\d\d-?[01]\d-?[0-3]\d([tT]\d{2}:?\d{2}:?\d{2})?)")
 
 
 def on_tick():
@@ -17,7 +17,7 @@ def on_tick():
             new_filenames: list[tuple[datetime.datetime, str]] = []
             for i in range(col.length):
                 filename = col.get_filename(i)
-                date = datere.match(filename)
+                date = datere.search(filename)
                 if not date:
                     continue
                 try:
